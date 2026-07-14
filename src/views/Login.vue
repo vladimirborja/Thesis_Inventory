@@ -111,186 +111,203 @@ function triggerAlert(msg: string, type: 'success' | 'error') {
                     {{ alertMsg }}
                 </div>
 
-                <!-- LOGIN FORM -->
-                <div v-if="!isRegister" class="space-y-6">
-                    <div>
-                        <h3 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Sign In</h3>
-                        <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Select your role and enter email to proceed</p>
-                    </div>
-
-                    <!-- Role selector -->
-                    <div class="space-y-2">
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Access Level</label>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button 
-                                @click="loginRole = 'super_admin'"
-                                type="button"
-                                class="py-2.5 px-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-1.5 transition"
-                                :class="loginRole === 'super_admin'
-                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
-                                    : 'border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400'"
-                            >
-                                <UserCheck :size="16" />
-                                Super Admin
-                            </button>
-                            <button 
-                                @click="loginRole = 'admin'"
-                                type="button"
-                                class="py-2.5 px-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-1.5 transition"
-                                :class="loginRole === 'admin'
-                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
-                                    : 'border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400'"
-                            >
-                                <ShieldCheck :size="16" />
-                                Admin
-                            </button>
-                            <button 
-                                @click="loginRole = 'employee'"
-                                type="button"
-                                class="py-2.5 px-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-1.5 transition"
-                                :class="loginRole === 'employee'
-                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
-                                    : 'border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400'"
-                            >
-                                <User :size="16" />
-                                Employee
-                            </button>
-                        </div>
-                    </div>
-
-                    <form @submit.prevent="handleLogin" class="space-y-4">
-                        <div class="space-y-1">
-                            <label for="email" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Email Address</label>
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                                    <Mail :size="18" />
-                                </span>
-                                <input 
-                                    id="email" 
-                                    v-model="loginEmail" 
-                                    type="email" 
-                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
-                                    placeholder="name@company.com"
-                                    required
-                                />
-                            </div>
+                <Transition name="form-fade" mode="out-in">
+                    <!-- LOGIN FORM -->
+                    <div v-if="!isRegister" key="login" class="space-y-6">
+                        <div>
+                            <h3 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Sign In</h3>
+                            <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Select your role and enter email to proceed</p>
                         </div>
 
-                        <div class="space-y-1">
-                            <label for="password" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Password</label>
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                                    <Lock :size="18" />
-                                </span>
-                                <input 
-                                    id="password" 
-                                    type="password" 
-                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
-                                    value="••••••••••••"
-                                    disabled
-                                />
-                            </div>
-                            <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Note: Authentication is simulated for rapid testing.</p>
-                        </div>
-
-                        <button 
-                            type="submit" 
-                            class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition shadow-lg shadow-emerald-600/10 text-sm mt-6"
-                        >
-                            Sign In
-                        </button>
-                    </form>
-                </div>
-
-                <!-- REGISTER FORM -->
-                <div v-else class="space-y-6">
-                    <div>
-                        <h3 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Create Account</h3>
-                        <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Register as system admin or floor operator</p>
-                    </div>
-
-                    <form @submit.prevent="handleRegister" class="space-y-4">
-                        <div class="space-y-1">
-                            <label for="reg-name" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Full Name</label>
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                                    <User :size="18" />
-                                </span>
-                                <input 
-                                    id="reg-name" 
-                                    v-model="regName" 
-                                    type="text" 
-                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
-                                    placeholder="Enter your name"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div class="space-y-1">
-                            <label for="reg-email" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Email Address</label>
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                                    <Mail :size="18" />
-                                </span>
-                                <input 
-                                    id="reg-email" 
-                                    v-model="regEmail" 
-                                    type="email" 
-                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
-                                    placeholder="email@company.com"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="space-y-1">
-                                <label for="reg-company" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Company</label>
-                                <input 
-                                    id="reg-company" 
-                                    v-model="regCompany" 
-                                    type="text" 
-                                    class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
-                                    required
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label for="reg-role" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Role Access</label>
-                                <select 
-                                    id="reg-role" 
-                                    v-model="regRole" 
-                                    class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
-                                    required
+                        <!-- Role selector -->
+                        <div class="space-y-2">
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Access Level</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button 
+                                    @click="loginRole = 'super_admin'"
+                                    type="button"
+                                    class="py-2.5 px-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-1.5 transition"
+                                    :class="loginRole === 'super_admin'
+                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                                        : 'border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400'"
                                 >
-                                    <option value="employee">Employee</option>
-                                    <option value="admin">Admin</option>
-                                    <option value="super_admin">Super Admin</option>
-                                </select>
+                                    <UserCheck :size="16" />
+                                    Super Admin
+                                </button>
+                                <button 
+                                    @click="loginRole = 'admin'"
+                                    type="button"
+                                    class="py-2.5 px-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-1.5 transition"
+                                    :class="loginRole === 'admin'
+                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                                        : 'border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400'"
+                                >
+                                    <ShieldCheck :size="16" />
+                                    Admin
+                                </button>
+                                <button 
+                                    @click="loginRole = 'employee'"
+                                    type="button"
+                                    class="py-2.5 px-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-1.5 transition"
+                                    :class="loginRole === 'employee'
+                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                                        : 'border-gray-100 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400'"
+                                >
+                                    <User :size="16" />
+                                    Employee
+                                </button>
                             </div>
                         </div>
 
-                        <div class="space-y-1">
-                            <label for="reg-pass" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Password</label>
-                            <input 
-                                id="reg-pass" 
-                                v-model="regPassword" 
-                                type="password" 
-                                class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
-                                placeholder="••••••••"
-                                required
-                            />
+                        <form @submit.prevent="handleLogin" class="space-y-4">
+                            <div class="space-y-1">
+                                <label for="email" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Email Address</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                                        <Mail :size="18" />
+                                    </span>
+                                    <input 
+                                        id="email" 
+                                        v-model="loginEmail" 
+                                        type="email" 
+                                        class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
+                                        placeholder="name@company.com"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label for="password" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Password</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                                        <Lock :size="18" />
+                                    </span>
+                                    <input 
+                                        id="password" 
+                                        type="password" 
+                                        class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
+                                        value="••••••••••••"
+                                        disabled
+                                    />
+                                </div>
+                                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Note: Authentication is simulated for rapid testing.</p>
+                            </div>
+
+                            <button 
+                                type="submit" 
+                                class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition shadow-lg shadow-emerald-600/10 text-sm mt-6"
+                            >
+                                Sign In
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- REGISTER FORM -->
+                    <div v-else key="register" class="space-y-6">
+                        <div>
+                            <h3 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Create Account</h3>
+                            <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Register as system admin or floor operator</p>
                         </div>
 
-                        <button 
-                            type="submit" 
-                            class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition shadow-lg shadow-emerald-600/10 text-sm mt-4"
-                        >
-                            Sign Up
-                        </button>
-                    </form>
-                </div>
+                        <form @submit.prevent="handleRegister" class="space-y-4">
+                            <div class="space-y-1">
+                                <label for="reg-name" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Full Name</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                                        <User :size="18" />
+                                    </span>
+                                    <input 
+                                        id="reg-name" 
+                                        v-model="regName" 
+                                        type="text" 
+                                        class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
+                                        placeholder="Enter your name"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label for="reg-email" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Email Address</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                                        <Mail :size="18" />
+                                    </span>
+                                    <input 
+                                        id="reg-email" 
+                                        v-model="regEmail" 
+                                        type="email" 
+                                        class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
+                                        placeholder="email@company.com"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                    <label for="reg-company" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Company</label>
+                                    <input 
+                                        id="reg-company" 
+                                        v-model="regCompany" 
+                                        type="text" 
+                                        class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
+                                        required
+                                    />
+                                </div>
+                                <div class="space-y-1">
+                                    <label for="reg-role" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Role Access</label>
+                                    <select 
+                                        id="reg-role" 
+                                        v-model="regRole" 
+                                        class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
+                                        required
+                                    >
+                                        <option value="employee">Employee</option>
+                                        <option value="admin">Admin</option>
+                                        <option value="super_admin">Super Admin</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label for="reg-pass" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Password</label>
+                                <input 
+                                    id="reg-pass" 
+                                    v-model="regPassword" 
+                                    type="password" 
+                                    class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 dark:text-white"
+                                    placeholder="••••••••"
+                                    required
+                                />
+                            </div>
+
+                            <button 
+                                type="submit" 
+                                class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition shadow-lg shadow-emerald-600/10 text-sm mt-4"
+                            >
+                                Sign Up
+                            </button>
+                        </form>
+                    </div>
+                </Transition>
             </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+.form-fade-enter-active,
+.form-fade-leave-active {
+    transition: all 0.25s ease-in-out;
+}
+.form-fade-enter-from {
+    opacity: 0;
+    transform: translateX(16px);
+}
+.form-fade-leave-to {
+    opacity: 0;
+    transform: translateX(-16px);
+}
+</style>

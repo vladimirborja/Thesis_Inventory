@@ -54,8 +54,11 @@ router.beforeEach((to, from, next) => {
     // Initialize session from localstorage
     authStore.initSession();
 
-    if (to.meta.requiresAuth && !authStore.currentUser) {
-        // Redirect to auth page
+    if (to.name === 'auth' && authStore.currentUser) {
+        // Logged in user trying to access login/register - redirect to dashboard
+        next({ name: 'dashboard' });
+    } else if (to.meta.requiresAuth && !authStore.currentUser) {
+        // Unauthenticated trying to access protected route - redirect to auth
         next({ name: 'auth' });
     } else if (to.meta.roles && authStore.currentUser) {
         // Check if role is allowed

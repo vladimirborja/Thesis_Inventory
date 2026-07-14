@@ -33,22 +33,30 @@ function handleProfileClick() {
             </div>
 
             <!-- Profile/Login Action -->
-            <button 
-                @click="handleProfileClick"
-                class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
-                :class="isLoggedIn 
-                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' 
-                    : 'bg-gray-900 text-white hover:bg-gray-800'"
-            >
+            <div class="flex items-center gap-3">
                 <template v-if="isLoggedIn">
-                    <LayoutDashboard :size="16" />
-                    <span>Go to Dashboard</span>
+                    <button 
+                        @click="handleProfileClick"
+                        class="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 rounded-xl text-sm font-semibold transition-all"
+                    >
+                        <LayoutDashboard :size="16" />
+                        <span>Go to Dashboard</span>
+                    </button>
+                    <!-- Small profile circle with initials -->
+                    <div class="h-9 w-9 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center font-bold text-sm text-emerald-700 dark:text-emerald-300 uppercase">
+                        {{ authStore.currentUser?.name.charAt(0) }}
+                    </div>
                 </template>
                 <template v-else>
-                    <LogIn :size="16" />
-                    <span>Sign In</span>
+                    <button 
+                        @click="handleProfileClick"
+                        class="flex items-center justify-center h-10 w-10 rounded-full border border-gray-250 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all dark:border-gray-850 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                        title="Profile / Sign In"
+                    >
+                        <User :size="20" />
+                    </button>
                 </template>
-            </button>
+            </div>
         </header>
 
         <!-- Hero Section -->

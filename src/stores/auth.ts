@@ -4,13 +4,7 @@ import type { User, UserRole, Product, Category, Warehouse, Supplier, StockTrans
 
 export const useAuthStore = defineStore('auth', () => {
     // Current user state
-    const currentUser = ref<User | null>({
-        id: 1,
-        name: 'John Doe',
-        email: 'superadmin@foodprocessing.com',
-        role: 'super_admin',
-        companyName: 'Apex Food Processing Corp'
-    });
+    const currentUser = ref<User | null>(null);
 
     // Mock Users
     const users = ref<User[]>([
@@ -109,6 +103,8 @@ export const useAuthStore = defineStore('auth', () => {
             }
         }
     }
+
+    initSession();
 
     return {
         currentUser,

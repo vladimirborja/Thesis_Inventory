@@ -104,7 +104,6 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
-    initSession();
 
     return {
         currentUser,

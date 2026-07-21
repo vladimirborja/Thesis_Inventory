@@ -1,36 +1,71 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { 
+import {
     Users, ShieldAlert, BarChart3, Clock, AlertTriangle, PackageCheck, Truck, ListCollapse, Plus, ArrowUpRight, ArrowDownRight, RefreshCw, Layers
 } from 'lucide-vue-next';
 import { formatCurrency } from '@/composables/useFormatCurrency';
-import type { Product, StockTransaction } from '@/types';
+import type { Product, StockTransaction, User as UserType, Warehouse } from '@/types';
+import { api } from '@/lib/api';
 
 const authStore = useAuthStore();
 
 const currentRole = computed(() => authStore.currentUser?.role || 'employee');
-const userName = computed(() => authStore.currentUser?.name || 'User');
+const userName    = computed(() => authStore.currentUser?.name || 'User');
 
-// --- ADMIN / MANAGER COMPUTED DATA ---
-const totalProducts = computed(() => authStore.products.length);
-const lowStockProducts = computed(() => authStore.products.filter(p => p.quantity > 0 && p.quantity <= p.minStockLevel));
-const outOfStockProducts = computed(() => authStore.products.filter(p => p.quantity === 0));
-const totalValuation = computed(() => {
-    return authStore.products.reduce((acc, p) => acc + (p.costPrice * p.quantity), 0);
-});
+const products     = ref<Product[]>([]);
+const transactions = ref<StockTransaction[]>([]);
+const users        = ref<UserType[]>([]);
+const warehouses   = ref<Warehouse[]>([]);
+const isLoading    = ref(false);
 
-// --- EMPLOYEE INTERACTION MOCK SCANNER ---
-const scanBarcode = ref('');
-const scannedProduct = ref<Product | null>(null);
-const scanQty = ref<number>(10);
-const scanNotes = ref('');
-const scannerFeedback = ref('');
+// Computed stats from API data
+const totalProducts      = computed(() => products.value.length);
+const lowStockProducts   = computed(() => products.value.filter(p => p.quantity > 0 && p.quantity <= p.minStockLevel));
+const outOfStockProducts = computed(() => products.value.filter(p => p.quantity === 0));
+const totalValuation     = computed(() => products.value.reduce((acc, p) => acc + (p.costPrice * p.quantity), 0));
+
+async function loadDashboardData() {
+    isLoading.value = true;
+    try {
+        const fetches: Promise<any>[] = [
+            api.get<Product[]>('/products'),
+            api.get<StockTransaction[]>('/transactions'),
+        ];
+        
+        if (currentRole.value === 'super_admin') {
+            fetches.push(api.get<UserType[]>('/users'));
+            fetches.push(api.get<Warehouse[]>('/warehouses'));
+        }
+        
+        const results = await Promise.all(fetches);
+        products.value = results[0];
+        transactions.value = results[1];
+        if (currentRole.value === 'super_admin') {
+            users.value = results[2];
+            warehouses.value = results[3];
+        }
+    } catch (err) {
+        console.error('Error loading dashboard data:', err);
+    } finally {
+        isLoading.value = false;
+    }
+}
+
+onMounted(loadDashboardData);
+
+// ── Employee barcode scanner (calls the transactions API) ──────────────────
+const scanBarcode      = ref('');
+const scannedProduct   = ref<Product | null>(null);
+const scanQty          = ref<number>(10);
+const scanNotes        = ref('');
+const scannerFeedback  = ref('');
+const isScanning       = ref(false);
 
 function simulateScan() {
     scannerFeedback.value = '';
-    const match = authStore.products.find(p => p.barcode === scanBarcode.value || p.sku === scanBarcode.value.toUpperCase());
+    const match = products.value.find(p => p.barcode === scanBarcode.value || p.sku === scanBarcode.value.toUpperCase());
     if (match) {
         scannedProduct.value = { ...match };
     } else {
@@ -39,47 +74,26 @@ function simulateScan() {
     }
 }
 
-function processScanAction(type: 'stock-in' | 'stock-out') {
+async function processScanAction(type: 'stock-in' | 'stock-out') {
     if (!scannedProduct.value) return;
-    
-    // Find index in main store
-    const idx = authStore.products.findIndex(p => p.id === scannedProduct.value!.id);
-    if (idx !== -1) {
-        const prod = authStore.products[idx];
-        if (prod) {
-            const qtyChange = type === 'stock-in' ? scanQty.value : -scanQty.value;
-            
-            if (type === 'stock-out' && prod.quantity < scanQty.value) {
-                scannerFeedback.value = 'Insufficient warehouse stock!';
-                return;
-            }
-
-            // Apply change to store product
-            prod.quantity += qtyChange;
-            
-            // Log transaction
-            const newTx: StockTransaction = {
-                id: authStore.transactions.length + 1,
-                productId: scannedProduct.value.id,
-                productName: scannedProduct.value.name,
-                warehouseId: 1, // Central
-                warehouseName: 'Central Cold Storage',
-                userId: authStore.currentUser?.id || 3,
-                userName: authStore.currentUser?.name || 'Employee',
-                type,
-                quantity: scanQty.value,
-                referenceNumber: 'SCAN-SIM-' + Math.floor(Math.random() * 10000),
-                notes: scanNotes.value || 'Barcode scan action',
-                createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
-            };
-            authStore.transactions.unshift(newTx);
-            
-            // Update scanned product display
-            scannedProduct.value.quantity += qtyChange;
-            scannerFeedback.value = `Success: Registered ${scanQty.value} units ${type === 'stock-in' ? 'INTO' : 'OUT OF'} stock.`;
-            scanBarcode.value = '';
-            scanNotes.value = '';
-        }
+    isScanning.value = true;
+    try {
+        await api.post('/transactions', {
+            product_id: scannedProduct.value.id,
+            type,
+            quantity: scanQty.value,
+            notes: scanNotes.value || 'Barcode scan action',
+            reference_number: 'SCAN-' + Math.floor(Math.random() * 10000),
+        });
+        scannerFeedback.value = `✅ Registered ${scanQty.value} units ${type === 'stock-in' ? 'INTO' : 'OUT OF'} stock.`;
+        scanBarcode.value = '';
+        scanNotes.value = '';
+        scannedProduct.value = null;
+        await loadDashboardData();
+    } catch (e: unknown) {
+        scannerFeedback.value = e instanceof Error ? e.message : 'Error processing action';
+    } finally {
+        isScanning.value = false;
     }
 }
 </script>
@@ -102,7 +116,7 @@ function processScanAction(type: 'stock-in' | 'stock-out') {
                     <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Active Users</p>
-                            <p class="text-2xl font-extrabold mt-2">{{ authStore.users.length }}</p>
+                            <p class="text-2xl font-extrabold mt-2">{{ users.length }}</p>
                         </div>
                         <div class="h-12 w-12 bg-blue-50 dark:bg-blue-950/20 text-blue-600 rounded-xl flex items-center justify-center">
                             <Users :size="22" />
@@ -112,7 +126,7 @@ function processScanAction(type: 'stock-in' | 'stock-out') {
                     <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Audit logs generated</p>
-                            <p class="text-2xl font-extrabold mt-2">{{ authStore.transactions.length }}</p>
+                            <p class="text-2xl font-extrabold mt-2">{{ transactions.length }}</p>
                         </div>
                         <div class="h-12 w-12 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 rounded-xl flex items-center justify-center">
                             <Clock :size="22" />
@@ -132,7 +146,7 @@ function processScanAction(type: 'stock-in' | 'stock-out') {
                     <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Storage Nodes</p>
-                            <p class="text-2xl font-extrabold mt-2">{{ authStore.warehouses.length }}</p>
+                            <p class="text-2xl font-extrabold mt-2">{{ warehouses.length }}</p>
                         </div>
                         <div class="h-12 w-12 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 rounded-xl flex items-center justify-center">
                             <Layers :size="22" />
@@ -151,7 +165,7 @@ function processScanAction(type: 'stock-in' | 'stock-out') {
                             </router-link>
                         </div>
                         <div class="space-y-3">
-                            <div v-for="u in authStore.users" :key="u.id" class="flex items-center justify-between p-3 rounded-xl border border-gray-50 dark:border-gray-850 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+                            <div v-for="u in users" :key="u.id" class="flex items-center justify-between p-3 rounded-xl border border-gray-50 dark:border-gray-850 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
                                 <div class="flex items-center gap-3">
                                     <div class="h-8 w-8 rounded-full bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center font-bold text-xs uppercase text-emerald-600 dark:text-emerald-300">
                                         {{ u.name.charAt(0) }}
@@ -178,7 +192,7 @@ function processScanAction(type: 'stock-in' | 'stock-out') {
                             </router-link>
                         </div>
                         <div class="space-y-3">
-                            <div v-for="t in authStore.transactions.slice(0, 4)" :key="t.id" class="flex items-center justify-between p-3 rounded-xl border border-gray-50 dark:border-gray-850 text-xs">
+                            <div v-for="t in transactions.slice(0, 4)" :key="t.id" class="flex items-center justify-between p-3 rounded-xl border border-gray-50 dark:border-gray-850 text-xs">
                                 <div>
                                     <p class="font-bold text-gray-800 dark:text-gray-200">{{ t.productName }}</p>
                                     <p class="text-[10px] text-gray-400 mt-1">Logged by {{ t.userName }} • {{ t.createdAt }}</p>
@@ -452,7 +466,7 @@ function processScanAction(type: 'stock-in' | 'stock-out') {
                             </p>
                             
                             <div class="space-y-2 pt-2 text-xs">
-                                <div v-for="p in authStore.products.slice(0, 3)" :key="p.id" class="p-2.5 bg-gray-50 dark:bg-gray-850 rounded-lg flex flex-col gap-0.5 border border-gray-100 dark:border-gray-800/80">
+                                <div v-for="p in products.slice(0, 3)" :key="p.id" class="p-2.5 bg-gray-50 dark:bg-gray-850 rounded-lg flex flex-col gap-0.5 border border-gray-100 dark:border-gray-800/80">
                                     <p class="font-bold truncate">{{ p.name }}</p>
                                     <div class="flex justify-between text-[10px] text-gray-400 mt-1">
                                         <span>SKU: <span class="text-gray-700 dark:text-gray-300 font-semibold">{{ p.sku }}</span></span>

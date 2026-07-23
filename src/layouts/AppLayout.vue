@@ -3,7 +3,7 @@ import { computed, ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { 
-    LayoutDashboard, Users, Package, Store, History, LogOut, Menu, X, Sun, Moon, User, ChevronRight, Package2
+    LayoutDashboard, Users, Package, Store, History, LogOut, Menu, X, Sun, Moon, User, ChevronRight, Package2, ChefHat, Receipt
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -24,6 +24,8 @@ const breadcrumbs = computed(() => {
     const path = route.path;
     if (path === '/dashboard') return [{ title: 'Dashboard' }];
     if (path === '/inventory') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Inventory' }];
+    if (path === '/ingredients') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Ingredients' }];
+    if (path === '/sales') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Sales Ledger' }];
     if (path === '/suppliers') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Suppliers' }];
     if (path === '/transactions') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Stock Transactions' }];
     if (path === '/users') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'User Management' }];
@@ -43,6 +45,8 @@ const navItems = computed(() => {
     } else {
         items.push(
             { title: 'Inventory Catalog', href: '/inventory', icon: Package },
+            { title: 'Ingredients Inventory', href: '/ingredients', icon: ChefHat },
+            { title: 'Sales & POS', href: '/sales', icon: Receipt },
             { title: 'Supplier Registry', href: '/suppliers', icon: Store },
             { title: 'Stock Transactions', href: '/transactions', icon: History }
         );

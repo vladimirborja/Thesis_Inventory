@@ -1,17 +1,23 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { 
     Search, Plus, Filter, Edit, Trash2, PackageCheck, AlertTriangle, ShieldX, X, Tag
 } from 'lucide-vue-next';
 import { formatCurrency } from '@/composables/useFormatCurrency';
-import type { Product } from '@/types';
+import type { Product, Category } from '@/types';
+import { api } from '@/lib/api';
 
 const authStore = useAuthStore();
 
 const currentRole = computed(() => authStore.currentUser?.role || 'employee');
 const isAdmin = computed(() => currentRole.value === 'admin' || currentRole.value === 'super_admin');
+
+const products = ref<Product[]>([]);
+const categories = ref<Category[]>([]);
+const isLoading = ref(false);
+const isSaving = ref(false);
 
 // Search & Filter state
 const searchQuery = ref('');
@@ -37,7 +43,7 @@ const formDesc = ref('');
 
 // Computed filtered products
 const filteredProducts = computed(() => {
-    return authStore.products.filter(p => {
+    return products.value.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchQuery.value.toLowerCase()) || 
                              p.sku.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
                              (p.barcode && p.barcode.includes(searchQuery.value));
@@ -57,13 +63,27 @@ const filteredProducts = computed(() => {
     });
 });
 
+async function loadData() {
+    isLoading.value = true;
+    try {
+        [products.value, categories.value] = await Promise.all([
+            api.get<Product[]>('/products'),
+            api.get<Category[]>('/categories')
+        ]);
+    } finally {
+        isLoading.value = false;
+    }
+}
+
+onMounted(loadData);
+
 function openAddModal() {
     isEditMode.value = false;
     currentEditId.value = null;
     formName.value = '';
     formSku.value = 'RM-' + Math.floor(1000 + Math.random() * 9000);
     formBarcode.value = '480' + Math.floor(100000000 + Math.random() * 900000000);
-    formCategory.value = authStore.categories[0]?.name || '';
+    formCategory.value = categories.value[0]?.name || '';
     formCost.value = 10;
     formPrice.value = 15;
     formMinStock.value = 10;
@@ -91,53 +111,47 @@ function openEditModal(product: Product) {
     isModalOpen.value = true;
 }
 
-function handleSave() {
+async function handleSave() {
     if (!formName.value || !formSku.value) return;
+    isSaving.value = true;
 
-    if (isEditMode.value && currentEditId.value !== null) {
-        // Edit mode
-        const idx = authStore.products.findIndex(p => p.id === currentEditId.value);
-        if (idx !== -1) {
-            const existing = authStore.products[idx]!;
-            authStore.products[idx] = {
-                id: existing.id,
-                name: formName.value,
-                sku: formSku.value,
-                barcode: formBarcode.value,
-                categoryId: existing.categoryId,
-                categoryName: formCategory.value,
-                costPrice: formCost.value,
-                sellingPrice: formPrice.value,
-                minStockLevel: formMinStock.value,
-                quantity: existing.quantity,
-                unitOfMeasure: formUom.value,
-                description: formDesc.value
-            };
+    const chosenCat = categories.value.find(c => c.name === formCategory.value);
+    const payload = {
+        name: formName.value,
+        sku: formSku.value,
+        barcode: formBarcode.value,
+        category_id: chosenCat ? chosenCat.id : null,
+        cost_price: formCost.value,
+        selling_price: formPrice.value,
+        min_stock_level: formMinStock.value,
+        quantity: formQty.value,
+        unit_of_measure: formUom.value,
+        description: formDesc.value
+    };
+
+    try {
+        if (isEditMode.value && currentEditId.value !== null) {
+            await api.put(`/products/${currentEditId.value}`, payload);
+        } else {
+            await api.post('/products', payload);
         }
-    } else {
-        // Add mode
-        const newProduct: Product = {
-            id: Date.now(),
-            name: formName.value,
-            sku: formSku.value,
-            barcode: formBarcode.value,
-            categoryId: authStore.categories.find(c => c.name === formCategory.value)?.id || 1,
-            categoryName: formCategory.value,
-            costPrice: formCost.value,
-            sellingPrice: formPrice.value,
-            minStockLevel: formMinStock.value,
-            quantity: formQty.value,
-            unitOfMeasure: formUom.value,
-            description: formDesc.value
-        };
-        authStore.products.unshift(newProduct);
+        await loadData();
+        isModalOpen.value = false;
+    } catch (e: unknown) {
+        alert(e instanceof Error ? e.message : 'Error saving SKU catalog');
+    } finally {
+        isSaving.value = false;
     }
-    isModalOpen.value = false;
 }
 
-function handleDelete(id: number) {
+async function handleDelete(id: number) {
     if (confirm('Are you sure you want to remove this SKU?')) {
-        authStore.products = authStore.products.filter(p => p.id !== id);
+        try {
+            await api.delete(`/products/${id}`);
+            await loadData();
+        } catch (e: unknown) {
+            alert(e instanceof Error ? e.message : 'Error deleting SKU');
+        }
     }
 }
 </script>
@@ -182,11 +196,11 @@ function handleDelete(id: number) {
                     <div class="flex items-center gap-2">
                         <span class="text-xs text-gray-400 font-medium">Category:</span>
                         <select 
-                            v-model="selectedCategory" 
-                            class="px-3 py-2 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950 text-xs text-gray-700 dark:text-gray-300 focus:outline-none"
+                            v-model="selectedCategory"
+                            class="pl-8 pr-4 py-2 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
                         >
                             <option value="">All Categories</option>
-                            <option v-for="c in authStore.categories" :key="c.id" :value="c.name">{{ c.name }}</option>
+                            <option v-for="c in categories" :key="c.id" :value="c.name">{{ c.name }}</option>
                         </select>
                     </div>
 
@@ -344,7 +358,7 @@ function handleDelete(id: number) {
                                     v-model="formCategory"
                                     class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
                                 >
-                                    <option v-for="c in authStore.categories" :key="c.id" :value="c.name">{{ c.name }}</option>
+                                    <option v-for="c in categories" :key="c.id" :value="c.name">{{ c.name }}</option>
                                 </select>
                             </div>
                             <div class="space-y-1">

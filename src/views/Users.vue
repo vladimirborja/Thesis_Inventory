@@ -1,91 +1,83 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { 
-    Search, Plus, Edit, Trash2, X, Shield, User, Briefcase
+import {
+    Search, Edit, Trash2, X, Shield, User, Briefcase
 } from 'lucide-vue-next';
 import type { User as UserType, UserRole } from '@/types';
+import { api } from '@/lib/api';
 
 const authStore = useAuthStore();
 
+const users      = ref<UserType[]>([]);
+const isLoading  = ref(false);
+const isSaving   = ref(false);
 const searchQuery = ref('');
 
-// Modal state
-const isModalOpen = ref(false);
-const isEditMode = ref(false);
+const isModalOpen   = ref(false);
+const isEditMode    = ref(true);
 const currentEditId = ref<number | null>(null);
-
-// Form state
-const formName = ref('');
-const formEmail = ref('');
-const formRole = ref<UserRole>('employee');
-const formCompany = ref('Apex Food Processing Corp');
+const formName      = ref('');
+const formEmail     = ref('');
+const formRole      = ref<UserRole>('employee');
+const formCompany   = ref('');
 
 const filteredUsers = computed(() => {
-    return authStore.users.filter(u => {
-        return u.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-               u.email.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-               u.role.toLowerCase().includes(searchQuery.value.toLowerCase());
-    });
+    const q = searchQuery.value.toLowerCase();
+    if (!q) return users.value;
+    return users.value.filter(u =>
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.role.toLowerCase().includes(q)
+    );
 });
 
+async function loadUsers() {
+    isLoading.value = true;
+    try {
+        users.value = await api.get<UserType[]>('/users');
+    } finally {
+        isLoading.value = false;
+    }
+}
+
+onMounted(loadUsers);
+
 function openAddModal() {
-    isEditMode.value = false;
-    currentEditId.value = null;
-    formName.value = '';
-    formEmail.value = '';
-    formRole.value = 'employee';
-    formCompany.value = 'Apex Food Processing Corp';
-    isModalOpen.value = true;
+    alert("New users should register themselves on the Sign Up page. As Super Admin, you can then manage their roles here.");
 }
 
 function openEditModal(user: UserType) {
-    isEditMode.value = true;
+    isEditMode.value    = true;
     currentEditId.value = user.id;
-    formName.value = user.name;
-    formEmail.value = user.email;
-    formRole.value = user.role;
-    formCompany.value = user.companyName || 'Apex Food Processing Corp';
-    isModalOpen.value = true;
+    formName.value      = user.name;
+    formEmail.value     = user.email;
+    formRole.value      = user.role;
+    formCompany.value   = user.companyName || 'Apex Food Processing Corp';
+    isModalOpen.value   = true;
 }
 
-function handleSave() {
-    if (!formName.value || !formEmail.value) return;
-
-    if (isEditMode.value && currentEditId.value !== null) {
-        const idx = authStore.users.findIndex(u => u.id === currentEditId.value);
-        if (idx !== -1) {
-            const existing = authStore.users[idx]!;
-            authStore.users[idx] = {
-                id: existing.id,
-                name: formName.value,
-                email: formEmail.value,
-                role: formRole.value,
-                companyName: formCompany.value
-            };
-        }
-    } else {
-        const newUser: UserType = {
-            id: Date.now(),
-            name: formName.value,
-            email: formEmail.value,
-            role: formRole.value,
-            companyName: formCompany.value
-        };
-        authStore.users.unshift(newUser);
+async function handleSave() {
+    if (!currentEditId.value) return;
+    isSaving.value = true;
+    try {
+        await api.put(`/users/${currentEditId.value}/role`, { role: formRole.value });
+        await loadUsers();
+        isModalOpen.value = false;
+    } finally {
+        isSaving.value = false;
     }
-    isModalOpen.value = false;
 }
 
-function handleDelete(id: number) {
+async function handleDelete(id: number) {
     if (authStore.currentUser?.id === id) {
-        alert('You cannot delete your own session!');
+        alert('You cannot delete your own account!');
         return;
     }
-    if (confirm('Are you sure you want to remove this user from the directory?')) {
-        authStore.users = authStore.users.filter(u => u.id !== id);
-    }
+    if (!confirm('Are you sure you want to remove this user?')) return;
+    await api.delete(`/users/${id}`);
+    await loadUsers();
 }
 </script>
 
@@ -213,7 +205,8 @@ function handleDelete(id: number) {
                             <input 
                                 v-model="formName" 
                                 type="text"
-                                class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none"
+                                :disabled="isEditMode"
+                                class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                                 placeholder="Enter full name"
                                 required
                             />
@@ -224,7 +217,8 @@ function handleDelete(id: number) {
                             <input 
                                 v-model="formEmail" 
                                 type="email"
-                                class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none"
+                                :disabled="isEditMode"
+                                class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                                 placeholder="name@company.com"
                                 required
                             />
@@ -248,7 +242,8 @@ function handleDelete(id: number) {
                                 <input 
                                     v-model="formCompany" 
                                     type="text"
-                                    class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none"
+                                    :disabled="isEditMode"
+                                    class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                                     required
                                 />
                             </div>

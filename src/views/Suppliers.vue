@@ -1,95 +1,98 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { 
-    Search, Plus, Edit, Trash2, X, Store, Mail, Phone, MapPin
+    Search, Plus, Edit, Trash2, X, Store, Mail, Phone, MapPin, RefreshCw
 } from 'lucide-vue-next';
 import type { Supplier } from '@/types';
+import { api } from '@/lib/api';
 
 const authStore = useAuthStore();
 
 const currentRole = computed(() => authStore.currentUser?.role || 'employee');
 const isAdmin = computed(() => currentRole.value === 'admin' || currentRole.value === 'super_admin');
 
-const searchQuery = ref('');
+const suppliers    = ref<Supplier[]>([]);
+const isLoading    = ref(false);
+const isSaving     = ref(false);
+const searchQuery  = ref('');
 
 // Modal state
-const isModalOpen = ref(false);
-const isEditMode = ref(false);
+const isModalOpen   = ref(false);
+const isEditMode    = ref(false);
 const currentEditId = ref<number | null>(null);
 
 // Form state
-const formName = ref('');
+const formName    = ref('');
 const formContact = ref('');
-const formEmail = ref('');
-const formPhone = ref('');
+const formEmail   = ref('');
+const formPhone   = ref('');
 const formAddress = ref('');
 
 const filteredSuppliers = computed(() => {
-    return authStore.suppliers.filter(s => {
-        return s.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-               (s.contactName && s.contactName.toLowerCase().includes(searchQuery.value.toLowerCase())) ||
-               (s.email && s.email.toLowerCase().includes(searchQuery.value.toLowerCase()));
-    });
+    const q = searchQuery.value.toLowerCase();
+    if (!q) return suppliers.value;
+    return suppliers.value.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        (s.contactName && s.contactName.toLowerCase().includes(q)) ||
+        (s.email && s.email.toLowerCase().includes(q))
+    );
 });
+
+async function loadSuppliers() {
+    isLoading.value = true;
+    try {
+        suppliers.value = await api.get<Supplier[]>('/suppliers');
+    } finally {
+        isLoading.value = false;
+    }
+}
+
+onMounted(loadSuppliers);
 
 function openAddModal() {
     isEditMode.value = false;
     currentEditId.value = null;
-    formName.value = '';
-    formContact.value = '';
-    formEmail.value = '';
-    formPhone.value = '';
-    formAddress.value = '';
+    formName.value = formContact.value = formEmail.value = formPhone.value = formAddress.value = '';
     isModalOpen.value = true;
 }
 
 function openEditModal(supplier: Supplier) {
-    isEditMode.value = true;
+    isEditMode.value    = true;
     currentEditId.value = supplier.id;
-    formName.value = supplier.name;
-    formContact.value = supplier.contactName || '';
-    formEmail.value = supplier.email || '';
-    formPhone.value = supplier.phone || '';
-    formAddress.value = supplier.address || '';
-    isModalOpen.value = true;
+    formName.value      = supplier.name;
+    formContact.value   = supplier.contactName || '';
+    formEmail.value     = supplier.email || '';
+    formPhone.value     = supplier.phone || '';
+    formAddress.value   = supplier.address || '';
+    isModalOpen.value   = true;
 }
 
-function handleSave() {
+async function handleSave() {
     if (!formName.value) return;
-
-    if (isEditMode.value && currentEditId.value !== null) {
-        const idx = authStore.suppliers.findIndex(s => s.id === currentEditId.value);
-        if (idx !== -1) {
-            const existing = authStore.suppliers[idx]!;
-            authStore.suppliers[idx] = {
-                id: existing.id,
-                name: formName.value,
-                contactName: formContact.value,
-                email: formEmail.value,
-                phone: formPhone.value,
-                address: formAddress.value
-            };
+    isSaving.value = true;
+    const payload = {
+        name: formName.value, contact_name: formContact.value,
+        email: formEmail.value, phone: formPhone.value, address: formAddress.value,
+    };
+    try {
+        if (isEditMode.value && currentEditId.value !== null) {
+            await api.put(`/suppliers/${currentEditId.value}`, payload);
+        } else {
+            await api.post('/suppliers', payload);
         }
-    } else {
-        const newSupplier: Supplier = {
-            id: Date.now(),
-            name: formName.value,
-            contactName: formContact.value,
-            email: formEmail.value,
-            phone: formPhone.value,
-            address: formAddress.value
-        };
-        authStore.suppliers.unshift(newSupplier);
+        await loadSuppliers();
+        isModalOpen.value = false;
+    } finally {
+        isSaving.value = false;
     }
-    isModalOpen.value = false;
 }
 
-function handleDelete(id: number) {
-    if (confirm('Are you sure you want to delete this supplier profile?')) {
-        authStore.suppliers = authStore.suppliers.filter(s => s.id !== id);
-    }
+async function handleDelete(id: number) {
+    if (!confirm('Are you sure you want to delete this supplier?')) return;
+    await api.delete(`/suppliers/${id}`);
+    await loadSuppliers();
 }
 </script>
 

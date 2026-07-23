@@ -1,85 +1,89 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { 
+import {
     Search, Plus, Filter, X, ArrowUpRight, ArrowDownRight, RefreshCw, ClipboardList, Info
 } from 'lucide-vue-next';
-import type { StockTransaction } from '@/types';
+import type { StockTransaction, Product, Warehouse } from '@/types';
+import { api } from '@/lib/api';
 
 const authStore = useAuthStore();
 
-// Filters state
-const searchQuery = ref('');
+const transactions = ref<StockTransaction[]>([]);
+const products     = ref<Product[]>([]);
+const warehouses   = ref<Warehouse[]>([]);
+const isLoading    = ref(false);
+const isSaving     = ref(false);
+
+const searchQuery  = ref('');
 const selectedType = ref('');
+const isModalOpen  = ref(false);
 
-// Modal state
-const isModalOpen = ref(false);
-
-// Form state
-const formProductId = ref<number>(authStore.products[0]?.id || 0);
+const formProductId   = ref<number>(0);
 const formWarehouseId = ref<number>(1);
-const formType = ref<'stock-in' | 'stock-out' | 'adjustment' | 'transfer'>('stock-in');
-const formQty = ref(10);
-const formRef = ref('');
-const formNotes = ref('');
+const formType        = ref<'stock-in'|'stock-out'|'adjustment'|'transfer'>('stock-in');
+const formQty         = ref(10);
+const formRef         = ref('');
+const formNotes       = ref('');
 
 const filteredTransactions = computed(() => {
-    return authStore.transactions.filter(t => {
-        const matchesSearch = t.productName.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-                             (t.referenceNumber && t.referenceNumber.toLowerCase().includes(searchQuery.value.toLowerCase())) ||
-                             t.userName.toLowerCase().includes(searchQuery.value.toLowerCase());
-        
+    const q = searchQuery.value.toLowerCase();
+    return transactions.value.filter(t => {
+        const matchesSearch = !q ||
+            t.productName.toLowerCase().includes(q) ||
+            (t.referenceNumber && t.referenceNumber.toLowerCase().includes(q)) ||
+            t.userName.toLowerCase().includes(q);
         const matchesType = !selectedType.value || t.type === selectedType.value;
-        
         return matchesSearch && matchesType;
     });
 });
 
-function openAddModal() {
-    formProductId.value = authStore.products[0]?.id || 0;
-    formWarehouseId.value = 1;
-    formType.value = 'stock-in';
-    formQty.value = 10;
-    formRef.value = 'PO-' + Math.floor(1000 + Math.random() * 9000);
-    formNotes.value = '';
-    isModalOpen.value = true;
+async function loadAll() {
+    isLoading.value = true;
+    try {
+        [transactions.value, products.value, warehouses.value] = await Promise.all([
+            api.get<StockTransaction[]>('/transactions'),
+            api.get<Product[]>('/products'),
+            api.get<Warehouse[]>('/warehouses'),
+        ]);
+        if (products.value.length) formProductId.value = products.value[0]!.id;
+    } finally {
+        isLoading.value = false;
+    }
 }
 
-function handleSave() {
-    const product = authStore.products.find(p => p.id === formProductId.value);
-    const warehouse = authStore.warehouses.find(w => w.id === formWarehouseId.value);
-    
-    if (!product || !warehouse) return;
+onMounted(loadAll);
 
-    // Apply stock quantity calculations to core store
-    const qtyChange = formType.value === 'stock-in' ? formQty.value : -formQty.value;
-    
-    // Check if operator exceeds inventory for stock-out
-    if (formType.value === 'stock-out' && product.quantity < formQty.value) {
-        alert('Action aborted: Insufficient available warehouse quantity.');
-        return;
+function openAddModal() {
+    formProductId.value   = products.value[0]?.id || 0;
+    formWarehouseId.value = warehouses.value[0]?.id || 1;
+    formType.value        = 'stock-in';
+    formQty.value         = 10;
+    formRef.value         = 'PO-' + Math.floor(1000 + Math.random() * 9000);
+    formNotes.value       = '';
+    isModalOpen.value     = true;
+}
+
+async function handleSave() {
+    if (!formProductId.value) return;
+    isSaving.value = true;
+    try {
+        await api.post('/transactions', {
+            product_id:       formProductId.value,
+            warehouse_id:     formWarehouseId.value,
+            type:             formType.value,
+            quantity:         formQty.value,
+            reference_number: formRef.value,
+            notes:            formNotes.value,
+        });
+        await loadAll();
+        isModalOpen.value = false;
+    } catch (e: unknown) {
+        alert(e instanceof Error ? e.message : 'Failed to save transaction');
+    } finally {
+        isSaving.value = false;
     }
-
-    product.quantity += qtyChange;
-
-    const newTx: StockTransaction = {
-        id: Date.now(),
-        productId: product.id,
-        productName: product.name,
-        warehouseId: warehouse.id,
-        warehouseName: warehouse.name,
-        userId: authStore.currentUser?.id || 3,
-        userName: authStore.currentUser?.name || 'Operator',
-        type: formType.value,
-        quantity: formQty.value,
-        referenceNumber: formRef.value,
-        notes: formNotes.value,
-        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
-    };
-
-    authStore.transactions.unshift(newTx);
-    isModalOpen.value = false;
 }
 </script>
 
@@ -221,7 +225,7 @@ function handleSave() {
                                 class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950 text-sm focus:outline-none"
                                 required
                             >
-                                <option v-for="p in authStore.products" :key="p.id" :value="p.id">
+                                <option v-for="p in products" :key="p.id" :value="p.id">
                                     {{ p.name }} (SKU: {{ p.sku }})
                                 </option>
                             </select>
@@ -247,7 +251,7 @@ function handleSave() {
                                     class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950 text-sm focus:outline-none"
                                     required
                                 >
-                                    <option v-for="w in authStore.warehouses" :key="w.id" :value="w.id">{{ w.name }}</option>
+                                    <option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name }}</option>
                                 </select>
                             </div>
                         </div>

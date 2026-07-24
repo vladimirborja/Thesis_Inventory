@@ -41,24 +41,24 @@ with Session(engine) as db:
     # ── Users ────────────────────────────────────────────────────────────────
     # Default password for ALL demo accounts: admin123
     DEFAULT_PASSWORD = pwd_context.hash("admin123")
+    COMPANY = "Duque Food Products"
 
     users = [
-        User(name="John Doe",    email="superadmin@foodprocessing.com", password=DEFAULT_PASSWORD,
-             role="super_admin", company_name="Apex Food Processing Corp"),
-        User(name="Alice Smith", email="admin@foodprocessing.com",      password=DEFAULT_PASSWORD,
-             role="admin",       company_name="Apex Food Processing Corp"),
-        User(name="Bob Johnson", email="employee@foodprocessing.com",   password=DEFAULT_PASSWORD,
-             role="employee",    company_name="Apex Food Processing Corp"),
+        User(name="Jesus F. Duque Jr.", email="superadmin@duquefood.com", password=DEFAULT_PASSWORD,
+             role="super_admin", company_name=COMPANY),
+        User(name="Plant Admin", email="admin@duquefood.com", password=DEFAULT_PASSWORD,
+             role="admin", company_name=COMPANY),
+        User(name="Floor Operator", email="employee@duquefood.com", password=DEFAULT_PASSWORD,
+             role="employee", company_name=COMPANY),
     ]
     db.add_all(users)
     db.flush()
 
     # ── Categories ───────────────────────────────────────────────────────────
     cats = [
-        Category(name="Raw Ingredients",        slug="raw-ingredients"),
-        Category(name="Packaging Materials",    slug="packaging-materials"),
-        Category(name="Finished Goods",         slug="finished-goods"),
-        Category(name="Additives & Preservatives", slug="additives-preservatives"),
+        Category(name="Processed Meats", slug="processed-meats"),
+        Category(name="Raw Ingredients", slug="raw-ingredients"),
+        Category(name="Packaging Materials", slug="packaging-materials"),
     ]
     db.add_all(cats)
     db.flush()
@@ -66,99 +66,140 @@ with Session(engine) as db:
 
     # ── Warehouses ───────────────────────────────────────────────────────────
     warehouses = [
-        Warehouse(name="Central Cold Storage",  location="Section A - Temperature Controlled"),
-        Warehouse(name="Raw Materials Depot",   location="Warehouse 3, Bay B"),
-        Warehouse(name="Packaging Storehouse",  location="Warehouse 1, Floor 2"),
-        Warehouse(name="Finished Goods Yard",   location="Loading Bay 5"),
+        Warehouse(name="Cold Storage", location="Purok 7, Malino — Temperature Controlled"),
+        Warehouse(name="Production Staging", location="Main Plant Floor"),
+        Warehouse(name="Packaging Area", location="Packing Line 1"),
     ]
     db.add_all(warehouses)
     db.flush()
 
     # ── Suppliers ────────────────────────────────────────────────────────────
     suppliers = [
-        Supplier(name="Agri-Grow Farms Inc.",   contact_name="Robert Vance",
-                 email="vance@agrigrow.com",    phone="+63 905 123 4567",
-                 address="Davao City, Philippines"),
-        Supplier(name="PolyPack Plastics Ltd.", contact_name="Sarah Jenkins",
-                 email="sjenkins@polypack.com", phone="+63 917 987 6543",
-                 address="Valenzuela City, Philippines"),
-        Supplier(name="Global Additives Co.",   contact_name="Dr. Ken Suzuki",
-                 email="suzuki@globaladditives.com", phone="+81 3 5555 0192",
-                 address="Tokyo, Japan"),
+        Supplier(
+            name="Central Luzon Meat Supply",
+            contact_name="Maria Santos",
+            email="orders@clmeats.ph",
+            phone="+63 917 000 0001",
+            address="San Fernando, Pampanga",
+            lead_time_days=5,
+        ),
+        Supplier(
+            name="Pampanga Spice & Seasoning Co.",
+            contact_name="Juan Reyes",
+            email="sales@pampangaspice.ph",
+            phone="+63 917 000 0002",
+            address="City of San Fernando, Pampanga",
+            lead_time_days=7,
+        ),
+        Supplier(
+            name="Metro Packaging Solutions",
+            contact_name="Ana Cruz",
+            email="hello@metropack.ph",
+            phone="+63 917 000 0003",
+            address="Valenzuela City",
+            lead_time_days=10,
+        ),
     ]
     db.add_all(suppliers)
     db.flush()
 
-    # ── Products ─────────────────────────────────────────────────────────────
+    # ── Products (Duque Food Products catalog) — prices in PHP ───────────────
+    meats_id = cat_map["processed-meats"]
     products = [
-        Product(name="Premium Semolina Wheat Flour", sku="RM-FLOUR-001",
-                barcode="4801234567011", category_id=cat_map["raw-ingredients"],
-                description="High gluten flour for pasta processing",
-                cost_price=35.00, selling_price=50.00,
-                min_stock_level=100, quantity=450, unit_of_measure="bags (25kg)"),
-        Product(name="BPA-Free Vacuum Sealing Film",  sku="PK-FILM-002",
-                barcode="4801234567028", category_id=cat_map["packaging-materials"],
-                description="200mm barrier roll for meat packaging",
-                cost_price=150.00, selling_price=220.00,
-                min_stock_level=20, quantity=12, unit_of_measure="rolls (100m)"),
-        Product(name="Canned Tomato Paste Concentrated", sku="RM-TPAS-003",
-                barcode="4801234567035", category_id=cat_map["raw-ingredients"],
-                description="Concentrated paste, Brix 28-30%",
-                cost_price=85.00, selling_price=120.00,
-                min_stock_level=50, quantity=3, unit_of_measure="drums (50kg)"),
-        Product(name="Natural Cane Sugar Refined", sku="RM-SUGR-004",
-                barcode="4801234567042", category_id=cat_map["raw-ingredients"],
-                description="Pure cane sugar, fine grade",
-                cost_price=45.00, selling_price=60.00,
-                min_stock_level=200, quantity=180, unit_of_measure="bags (50kg)"),
-        Product(name="Organic Citric Acid Powder", sku="AD-CITR-005",
-                barcode="4801234567059", category_id=cat_map["additives-preservatives"],
-                description="USP/FCC grade food acidulant",
-                cost_price=95.00, selling_price=140.00,
-                min_stock_level=30, quantity=45, unit_of_measure="bags (25kg)"),
-        Product(name="Sweet Chilli Sauce (Finished)", sku="FG-CHLI-006",
-                barcode="4801234567066", category_id=cat_map["finished-goods"],
-                description="Bottled sweet chilli sauce ready for retail",
-                cost_price=22.00, selling_price=38.00,
-                min_stock_level=500, quantity=1250, unit_of_measure="cases (24x250ml)"),
+        Product(
+            name="Skinless Longganisa", sku="DFP-LONG-001", barcode="4809001001001",
+            category_id=meats_id,
+            description="Skinless Filipino longganisa — savory-sweet, ready for retail and foodservice.",
+            cost_price=180.00, selling_price=250.00,
+            min_stock_level=40, quantity=120, unit_of_measure="kg",
+            lead_time_days=5,
+        ),
+        Product(
+            name="Tocino", sku="DFP-TOCI-002", barcode="4809001001002",
+            category_id=meats_id,
+            description="Sweet cured tocino slices for home and institutional buyers.",
+            cost_price=200.00, selling_price=280.00,
+            min_stock_level=35, quantity=95, unit_of_measure="kg",
+            lead_time_days=5,
+        ),
+        Product(
+            name="Ham", sku="DFP-HAM-003", barcode="4809001001003",
+            category_id=meats_id,
+            description="Processed ham — sliced or whole for local customers and businesses.",
+            cost_price=320.00, selling_price=450.00,
+            min_stock_level=20, quantity=48, unit_of_measure="kg",
+            lead_time_days=7,
+        ),
+        Product(
+            name="Embotido", sku="DFP-EMBO-004", barcode="4809001001004",
+            category_id=meats_id,
+            description="Classic Filipino embotido loaf for celebrations and everyday meals.",
+            cost_price=160.00, selling_price=230.00,
+            min_stock_level=30, quantity=70, unit_of_measure="kg",
+            lead_time_days=5,
+        ),
+        Product(
+            name="Bologna", sku="DFP-BOLO-005", barcode="4809001001005",
+            category_id=meats_id,
+            description="Smooth bologna for sandwiches, trays, and bulk foodservice orders.",
+            cost_price=140.00, selling_price=200.00,
+            min_stock_level=25, quantity=60, unit_of_measure="kg",
+            lead_time_days=7,
+        ),
+        Product(
+            name="Patties", sku="DFP-PATT-006", barcode="4809001001006",
+            category_id=meats_id,
+            description="Ready-to-cook meat patties for canteens, stalls, and households.",
+            cost_price=150.00, selling_price=220.00,
+            min_stock_level=50, quantity=18, unit_of_measure="packs",
+            lead_time_days=4,
+        ),
+        Product(
+            name="Siomai", sku="DFP-SIOM-007", barcode="4809001001007",
+            category_id=meats_id,
+            description="Pork siomai — steamed or fried; packed for retail and food carts.",
+            cost_price=120.00, selling_price=180.00,
+            min_stock_level=60, quantity=150, unit_of_measure="packs",
+            lead_time_days=3,
+        ),
     ]
     db.add_all(products)
     db.flush()
 
-    # ── Ingredients ──────────────────────────────────────────────────────────
+    # ── Ingredients (meat processing) ────────────────────────────────────────
     ingredients = [
-        Ingredient(name="Tomato Paste",     quantity=150.0, unit="kg",  min_stock_level=50.0),
-        Ingredient(name="Cane Sugar",       quantity=300.0, unit="kg",  min_stock_level=100.0),
-        Ingredient(name="Chilli Pepper",    quantity=80.0,  unit="kg",  min_stock_level=20.0),
-        Ingredient(name="Citric Acid",      quantity=25.0,  unit="kg",  min_stock_level=10.0),
-        Ingredient(name="White Vinegar",    quantity=200.0, unit="L",   min_stock_level=50.0),
-        Ingredient(name="Garlic Powder",    quantity=15.0,  unit="kg",  min_stock_level=5.0),
-        Ingredient(name="Food Preservative E211", quantity=5.0, unit="kg", min_stock_level=2.0),
+        Ingredient(name="Ground Pork", quantity=200.0, unit="kg", min_stock_level=50.0, lead_time_days=3),
+        Ingredient(name="Ground Beef", quantity=80.0, unit="kg", min_stock_level=25.0, lead_time_days=3),
+        Ingredient(name="Curing Salt", quantity=15.0, unit="kg", min_stock_level=5.0, lead_time_days=10),
+        Ingredient(name="Brown Sugar", quantity=40.0, unit="kg", min_stock_level=15.0, lead_time_days=7),
+        Ingredient(name="Garlic", quantity=25.0, unit="kg", min_stock_level=8.0, lead_time_days=4),
+        Ingredient(name="Black Pepper", quantity=8.0, unit="kg", min_stock_level=3.0, lead_time_days=7),
+        Ingredient(name="Food Casing / Wrapper", quantity=500.0, unit="pcs", min_stock_level=100.0, lead_time_days=10),
     ]
     db.add_all(ingredients)
     db.flush()
-    prod_map = {p.sku: p.id for p in products}
 
     # ── Demo Transactions ─────────────────────────────────────────────────────
     admin_id = users[1].id
-    emp_id   = users[2].id
-    wh_ids   = [w.id for w in warehouses]
+    emp_id = users[2].id
+    wh_ids = [w.id for w in warehouses]
 
     txs = [
         StockTransaction(
-            product_id=products[0].id, warehouse_id=wh_ids[1], supplier_id=suppliers[0].id,
-            user_id=admin_id, type="stock-in", quantity=200,
-            reference_number="PO-2026-001", notes="Initial receipt from Agri-Grow Farms"),
+            product_id=products[0].id, warehouse_id=wh_ids[0], supplier_id=suppliers[0].id,
+            user_id=admin_id, type="stock-in", quantity=50,
+            reference_number="PO-2026-DFP-001", notes="Cold storage receipt — Skinless Longganisa"),
         StockTransaction(
-            product_id=products[2].id, warehouse_id=wh_ids[0],
-            user_id=emp_id, type="stock-out", quantity=15,
-            reference_number="WO-2026-042", notes="Released for Batch 4 Sauce Production"),
+            product_id=products[5].id, warehouse_id=wh_ids[1],
+            user_id=emp_id, type="stock-out", quantity=12,
+            reference_number="SO-2026-018", notes="Released Patties for weekend orders"),
         StockTransaction(
-            product_id=products[1].id, warehouse_id=wh_ids[2],
-            user_id=admin_id, type="adjustment", quantity=-2,
-            reference_number="ADJ-009", notes="Damaged during forklift maneuver"),
+            product_id=products[1].id, warehouse_id=wh_ids[0],
+            user_id=admin_id, type="adjustment", quantity=-3,
+            reference_number="ADJ-DFP-002", notes="Tocino quality hold / sample pull"),
     ]
     db.add_all(txs)
     db.commit()
 
 print("✅ Seed complete. Default password for all accounts: admin123")
+print("   superadmin@duquefood.com / admin@duquefood.com / employee@duquefood.com")

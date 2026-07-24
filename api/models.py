@@ -67,13 +67,14 @@ class Warehouse(Base):
 class Supplier(Base):
     __tablename__ = "suppliers"
 
-    id:           Mapped[int]           = mapped_column(Integer, primary_key=True)
-    name:         Mapped[str]           = mapped_column(String(255), nullable=False)
-    contact_name: Mapped[Optional[str]] = mapped_column(String(255))
-    email:        Mapped[Optional[str]] = mapped_column(String(255))
-    phone:        Mapped[Optional[str]] = mapped_column(String(50))
-    address:      Mapped[Optional[str]] = mapped_column(Text)
-    created_at:   Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now())
+    id:             Mapped[int]           = mapped_column(Integer, primary_key=True)
+    name:           Mapped[str]           = mapped_column(String(255), nullable=False)
+    contact_name:   Mapped[Optional[str]] = mapped_column(String(255))
+    email:          Mapped[Optional[str]] = mapped_column(String(255))
+    phone:          Mapped[Optional[str]] = mapped_column(String(50))
+    address:        Mapped[Optional[str]] = mapped_column(Text)
+    lead_time_days: Mapped[int]           = mapped_column(Integer, nullable=False, default=7)
+    created_at:     Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     transactions: Mapped[List["StockTransaction"]] = relationship("StockTransaction", back_populates="supplier")
 
@@ -94,6 +95,7 @@ class Product(Base):
     min_stock_level: Mapped[int]           = mapped_column(Integer, nullable=False, default=0)
     quantity:        Mapped[int]           = mapped_column(Integer, nullable=False, default=0)
     unit_of_measure: Mapped[str]           = mapped_column(String(100), nullable=False, default="pcs")
+    lead_time_days:  Mapped[int]           = mapped_column(Integer, nullable=False, default=7)
     created_at:      Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     category:     Mapped[Optional["Category"]]          = relationship("Category", back_populates="products")
@@ -101,6 +103,7 @@ class Product(Base):
     transactions: Mapped[List["StockTransaction"]]      = relationship("StockTransaction", back_populates="product")
     sale_items:   Mapped[List["SaleItem"]]              = relationship("SaleItem", back_populates="product")
     ingredients:  Mapped[List["ProductIngredient"]]     = relationship("ProductIngredient", back_populates="product", cascade="all, delete-orphan")
+    forecasts:    Mapped[List["DemandForecast"]]        = relationship("DemandForecast", back_populates="product", cascade="all, delete-orphan")
 
 
 # ── Product Images ─────────────────────────────────────────────────────────────
@@ -128,6 +131,7 @@ class Ingredient(Base):
     unit:            Mapped[Optional[str]] = mapped_column(String(50))
     min_stock_level: Mapped[float]         = mapped_column(Numeric(12, 3), nullable=False, default=0)
     description:     Mapped[Optional[str]] = mapped_column(Text)
+    lead_time_days:  Mapped[int]           = mapped_column(Integer, nullable=False, default=7)
     created_at:      Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     product_links: Mapped[List["ProductIngredient"]] = relationship("ProductIngredient", back_populates="ingredient")
@@ -216,3 +220,24 @@ class ActivityLog(Base):
     created_at:  Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship("User", back_populates="activity")
+
+
+# ── Demand Forecast Snapshots (analytics) ──────────────────────────────────────
+
+class DemandForecast(Base):
+    """Persisted forecast outputs for audit / chart history (computed on demand)."""
+    __tablename__ = "demand_forecasts"
+    __table_args__ = (
+        CheckConstraint("period_type IN ('week', 'month')", name="ck_forecast_period"),
+    )
+
+    id:                 Mapped[int]           = mapped_column(Integer, primary_key=True, index=True)
+    product_id:         Mapped[int]           = mapped_column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    period_type:        Mapped[str]           = mapped_column(String(10), nullable=False)  # week | month
+    period_key:         Mapped[str]           = mapped_column(String(20), nullable=False)  # e.g. 2026-W12 or 2026-07
+    predicted_qty:      Mapped[float]         = mapped_column(Numeric(12, 3), nullable=False, default=0)
+    method:             Mapped[str]           = mapped_column(String(60), nullable=False, default="exponential_smoothing")
+    mape_percent:       Mapped[Optional[float]] = mapped_column(Numeric(8, 2))
+    generated_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    product: Mapped["Product"] = relationship("Product", back_populates="forecasts")

@@ -5,6 +5,7 @@
 -- =============================================================================
 
 -- Drop in reverse dependency order (idempotent re-run)
+DROP TABLE IF EXISTS demand_forecasts   CASCADE;
 DROP TABLE IF EXISTS activity_logs      CASCADE;
 DROP TABLE IF EXISTS sale_items         CASCADE;
 DROP TABLE IF EXISTS sales              CASCADE;
@@ -48,13 +49,14 @@ CREATE TABLE warehouses (
 
 -- ── Suppliers ─────────────────────────────────────────────────────────────────
 CREATE TABLE suppliers (
-    id           SERIAL PRIMARY KEY,
-    name         VARCHAR(255) NOT NULL,
-    contact_name VARCHAR(255),
-    email        VARCHAR(255),
-    phone        VARCHAR(50),
-    address      TEXT,
-    created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id             SERIAL PRIMARY KEY,
+    name           VARCHAR(255) NOT NULL,
+    contact_name   VARCHAR(255),
+    email          VARCHAR(255),
+    phone          VARCHAR(50),
+    address        TEXT,
+    lead_time_days INT NOT NULL DEFAULT 7,
+    created_at     TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- ── Products ──────────────────────────────────────────────────────────────────
@@ -70,6 +72,7 @@ CREATE TABLE products (
     min_stock_level INT            NOT NULL DEFAULT 0,
     quantity        INT            NOT NULL DEFAULT 0,
     unit_of_measure VARCHAR(100)   NOT NULL DEFAULT 'pcs',
+    lead_time_days  INT            NOT NULL DEFAULT 7,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -90,6 +93,7 @@ CREATE TABLE ingredients (
     unit            VARCHAR(50),
     min_stock_level NUMERIC(12, 3)   NOT NULL DEFAULT 0,
     description     TEXT,
+    lead_time_days  INT NOT NULL DEFAULT 7,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -145,6 +149,19 @@ CREATE TABLE activity_logs (
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- ── Demand Forecast Snapshots (analytics) ─────────────────────────────────────
+CREATE TABLE demand_forecasts (
+    id            SERIAL PRIMARY KEY,
+    product_id    INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    period_type   VARCHAR(10) NOT NULL
+                      CHECK (period_type IN ('week', 'month')),
+    period_key    VARCHAR(20) NOT NULL,          -- e.g. 2026-W12 or 2026-07
+    predicted_qty NUMERIC(12, 3) NOT NULL DEFAULT 0,
+    method        VARCHAR(60) NOT NULL DEFAULT 'exponential_smoothing',
+    mape_percent  NUMERIC(8, 2),
+    generated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ── Indexes ───────────────────────────────────────────────────────────────────
 CREATE INDEX idx_products_sku         ON products(sku);
 CREATE INDEX idx_products_barcode     ON products(barcode);
@@ -154,3 +171,41 @@ CREATE INDEX idx_activity_user        ON activity_logs(user_id);
 CREATE INDEX idx_activity_created     ON activity_logs(created_at DESC);
 CREATE INDEX idx_sales_user           ON sales(user_id);
 CREATE INDEX idx_sales_created        ON sales(created_at DESC);
+CREATE INDEX idx_sale_items_product   ON sale_items(product_id);
+CREATE INDEX idx_forecasts_product    ON demand_forecasts(product_id);
+CREATE INDEX idx_forecasts_generated  ON demand_forecasts(generated_at DESC);
+CREATE INDEX idx_forecasts_period     ON demand_forecasts(period_type, period_key);
+
+-- =============================================================================
+-- INCREMENTAL MIGRATION (safe for existing Neon / production data)
+-- Copy ONLY the block below into your SQL editor if tables already exist.
+-- No DROP statements — additive only.
+-- =============================================================================
+-- BEGIN INCREMENTAL
+ALTER TABLE suppliers
+    ADD COLUMN IF NOT EXISTS lead_time_days INT NOT NULL DEFAULT 7;
+
+ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS lead_time_days INT NOT NULL DEFAULT 7;
+
+ALTER TABLE ingredients
+    ADD COLUMN IF NOT EXISTS lead_time_days INT NOT NULL DEFAULT 7;
+
+CREATE TABLE IF NOT EXISTS demand_forecasts (
+    id            SERIAL PRIMARY KEY,
+    product_id    INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    period_type   VARCHAR(10) NOT NULL
+                      CHECK (period_type IN ('week', 'month')),
+    period_key    VARCHAR(20) NOT NULL,
+    predicted_qty NUMERIC(12, 3) NOT NULL DEFAULT 0,
+    method        VARCHAR(60) NOT NULL DEFAULT 'exponential_smoothing',
+    mape_percent  NUMERIC(8, 2),
+    generated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sale_items_product  ON sale_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_forecasts_product   ON demand_forecasts(product_id);
+CREATE INDEX IF NOT EXISTS idx_forecasts_generated ON demand_forecasts(generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_forecasts_period    ON demand_forecasts(period_type, period_key);
+-- END INCREMENTAL
+-- =============================================================================

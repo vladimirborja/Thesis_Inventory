@@ -6,8 +6,10 @@ const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
     routes: [
         { path: '/',            name: 'landing',      component: Landing },
+        { path: '/company',     name: 'company',      component: () => import('@/views/CompanyInfo.vue') },
         { path: '/auth',        name: 'auth',         component: () => import('@/views/Login.vue') },
         { path: '/dashboard',   name: 'dashboard',    component: () => import('@/views/Dashboard.vue'),    meta: { requiresAuth: true } },
+        { path: '/analytics',   name: 'analytics',    component: () => import('@/views/Analytics.vue'),    meta: { requiresAuth: true, roles: ['admin', 'super_admin'] } },
         { path: '/inventory',   name: 'inventory',    component: () => import('@/views/Inventory.vue'),    meta: { requiresAuth: true } },
         { path: '/ingredients', name: 'ingredients',  component: () => import('@/views/Ingredients.vue'),  meta: { requiresAuth: true } },
         { path: '/sales',       name: 'sales',        component: () => import('@/views/Sales.vue'),        meta: { requiresAuth: true } },

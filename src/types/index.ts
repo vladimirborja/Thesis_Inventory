@@ -24,6 +24,7 @@ export interface Product {
     minStockLevel: number;
     quantity: number;
     unitOfMeasure: string;
+    leadTimeDays?: number;
     createdAt?: string;
     images?: ProductImage[];
 }
@@ -139,4 +140,87 @@ export interface LoginResponse {
     access_token: string;
     token_type: string;
     user: User;
+}
+
+export interface DashboardSummary {
+    totalUsers: number;
+    totalBuy: number;
+    totalSell: number;
+}
+
+export interface MonthlySalesItem {
+    month: string;
+    label: string;
+    total: number;
+}
+
+export interface ForecastHistoryPoint {
+    period: string;
+    label: string;
+    actual: number;
+    fitted?: number | null;
+}
+
+export interface ForecastPoint {
+    period: string;
+    label: string;
+    predicted: number;
+}
+
+export interface ProductForecast {
+    productId: number;
+    productName: string;
+    sku: string;
+    period: string;
+    horizon: number;
+    method: string;
+    alpha?: number | null;
+    mapePercent?: number | null;
+    nextPeriodDemand: number;
+    history: ForecastHistoryPoint[];
+    forecast: ForecastPoint[];
+}
+
+export interface AbcItem {
+    productId: number;
+    name: string;
+    sku: string;
+    salesValue: number;
+    valueSharePercent: number;
+    cumulativePercent: number;
+    abcClass: 'A' | 'B' | 'C';
+}
+
+export interface AbcAnalysis {
+    items: AbcItem[];
+    counts: { A: number; B: number; C: number };
+}
+
+export interface ReorderPointItem {
+    itemType: 'product' | 'ingredient';
+    itemId: number;
+    name: string;
+    sku?: string | null;
+    avgDailyUsage: number;
+    demandStdDev: number;
+    leadTimeDays: number;
+    zScore: number;
+    safetyStock: number;
+    reorderPoint: number;
+    recommendedOrderQty: number;
+    currentQuantity: number;
+    minStockLevel: number;
+    belowRop: boolean;
+    belowMinStock: boolean;
+    needsReorder: boolean;
+}
+
+export interface AnalyticsOverview {
+    productsBelowRop: number;
+    ingredientsBelowRop: number;
+    classACount: number;
+    classBCount: number;
+    classCCount: number;
+    avgMapePercent?: number | null;
+    leadTimeDaysDefault: number;
 }

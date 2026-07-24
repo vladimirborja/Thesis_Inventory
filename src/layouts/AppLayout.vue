@@ -3,7 +3,7 @@ import { computed, ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { 
-    LayoutDashboard, Users, Package, Store, History, LogOut, Menu, X, Sun, Moon, User, ChevronRight, Package2, ChefHat, Receipt
+    LayoutDashboard, Users, Package, Store, History, LogOut, Menu, X, Sun, Moon, User, ChevronRight, Package2, ChefHat, Receipt, LineChart
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -17,12 +17,13 @@ const currentUser = computed(() => authStore.currentUser);
 const currentRole = computed(() => currentUser.value?.role || 'employee');
 const userName = computed(() => currentUser.value?.name || 'User');
 const userEmail = computed(() => currentUser.value?.email || 'user@company.com');
-const userCompany = computed(() => currentUser.value?.companyName || 'Apex Food Processing Corp');
+const userCompany = computed(() => currentUser.value?.companyName || 'Duque Food Products');
 
 // Computed list of paths for Breadcrumbs
 const breadcrumbs = computed(() => {
     const path = route.path;
     if (path === '/dashboard') return [{ title: 'Dashboard' }];
+    if (path === '/analytics') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Analytics' }];
     if (path === '/inventory') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Inventory' }];
     if (path === '/ingredients') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Ingredients' }];
     if (path === '/sales') return [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Sales Ledger' }];
@@ -36,6 +37,11 @@ const navItems = computed(() => {
     const items = [
         { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     ];
+
+    const isAdminRole = currentRole.value === 'admin' || currentRole.value === 'super_admin';
+    if (isAdminRole) {
+        items.push({ title: 'Analytics', href: '/analytics', icon: LineChart });
+    }
 
     if (currentRole.value === 'super_admin') {
         items.push(

@@ -2,14 +2,18 @@
 api/routers/sales.py — Record sales; auto-deduct product inventory on commit.
 """
 
+from calendar import month_abbr, monthrange
+from datetime import datetime, timezone
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from api.database import get_db
-from api.dependencies import get_current_user, log_activity
+from api.dependencies import get_current_user, require_super_admin, log_activity
 from api.models import Sale, SaleItem, Product, User
-from api.schemas import SaleCreate, SaleResponse, SaleItemResponse
+from api.schemas import SaleCreate, SaleResponse, SaleItemResponse, MonthlySalesItem
 
 router = APIRouter()
 
@@ -28,6 +32,51 @@ def _enrich_sale(sale: Sale) -> SaleResponse:
         for item in sale.items
     ]
     return data
+
+
+def _add_months(dt: datetime, months: int) -> datetime:
+    """Shift a datetime by N calendar months (day clamped to month length)."""
+    y = dt.year + (dt.month - 1 + months) // 12
+    m = (dt.month - 1 + months) % 12 + 1
+    d = min(dt.day, monthrange(y, m)[1])
+    return dt.replace(year=y, month=m, day=d)
+
+
+@router.get("/monthly-summary", response_model=List[MonthlySalesItem])
+def monthly_sales_summary(
+    months: int = Query(12, ge=1, le=24),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    """Last N calendar months of sales totals (zeros for empty months)."""
+    now = datetime.now(timezone.utc)
+    start = _add_months(
+        now.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+        -(months - 1),
+    )
+
+    rows = (
+        db.query(
+            extract("year", Sale.created_at).label("y"),
+            extract("month", Sale.created_at).label("m"),
+            func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
+        )
+        .filter(Sale.created_at >= start)
+        .group_by("y", "m")
+        .all()
+    )
+    keyed = {(int(r.y), int(r.m)): float(r.total) for r in rows}
+
+    result: List[MonthlySalesItem] = []
+    for i in range(months):
+        dt = _add_months(start, i)
+        key = (dt.year, dt.month)
+        result.append(MonthlySalesItem(
+            month=f"{dt.year:04d}-{dt.month:02d}",
+            label=f"{month_abbr[dt.month]} {dt.year}",
+            total=round(keyed.get(key, 0.0), 2),
+        ))
+    return result
 
 
 @router.get("", response_model=List[SaleResponse])
@@ -61,16 +110,17 @@ def create_sale(
                 status_code=400,
                 detail=f"Insufficient stock for '{product.name}' (available: {product.quantity})",
             )
-        # Deduct inventory
         product.quantity -= item.quantity
-        
-        # Deduct ingredient quantities if mapped
+
         for link in product.ingredients:
             qty_needed = float(link.quantity_required) * item.quantity
             if float(link.ingredient.quantity) < qty_needed:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Insufficient ingredient '{link.ingredient.name}' to fulfill sale (available: {link.ingredient.quantity} {link.ingredient.unit or ''})"
+                    detail=(
+                        f"Insufficient ingredient '{link.ingredient.name}' to fulfill sale "
+                        f"(available: {link.ingredient.quantity} {link.ingredient.unit or ''})"
+                    ),
                 )
             link.ingredient.quantity = float(link.ingredient.quantity) - qty_needed
 

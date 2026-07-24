@@ -12,8 +12,9 @@ from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.dependencies import get_current_user, require_admin, log_activity
-from api.models import Product, ProductImage, User
+from api.models import Product, ProductImage, User, Sale, SaleItem
 from api.schemas import ProductCreate, ProductResponse, ProductUpdate, ProductImageResponse
+from api.services.reorder import daily_usage_series, compute_rop, DEFAULT_LEAD_TIME_DAYS
 
 # Configure Cloudinary
 cloudinary.config(
@@ -40,7 +41,7 @@ def _build_response(product: Product) -> ProductResponse:
 def list_products(
     search: Optional[str] = Query(None),
     category_id: Optional[int] = Query(None),
-    stock_status: Optional[str] = Query(None),  # all | low | out | instock
+    stock_status: Optional[str] = Query(None),  # all | low | out | instock | reorder
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -61,6 +62,25 @@ def list_products(
         products = [p for p in products if p.quantity == 0]
     elif stock_status == "instock":
         products = [p for p in products if p.quantity > p.min_stock_level]
+    elif stock_status == "reorder":
+        # qty ≤ calculated ROP (default 7-day lead time)
+        filtered = []
+        for p in products:
+            sale_rows = (
+                db.query(Sale.created_at, SaleItem.quantity)
+                .join(SaleItem, SaleItem.sale_id == Sale.id)
+                .filter(SaleItem.product_id == p.id)
+                .all()
+            )
+            daily = daily_usage_series([(r[0], float(r[1])) for r in sale_rows])
+            lt = int(getattr(p, "lead_time_days", None) or DEFAULT_LEAD_TIME_DAYS)
+            calc = compute_rop(
+                daily, p.quantity, lt,
+                min_stock_level=p.min_stock_level,
+            )
+            if calc["needs_reorder"]:
+                filtered.append(p)
+        products = filtered
 
     return [_build_response(p) for p in products]
 

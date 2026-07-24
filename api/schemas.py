@@ -39,7 +39,6 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     role: str = "employee"
-    company_name: Optional[str] = None
 
     @field_validator("role")
     @classmethod
@@ -96,10 +95,12 @@ class SupplierCreate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
+    lead_time_days: int = 7
 
 
 class SupplierUpdate(SupplierCreate):
     name: Optional[str] = None
+    lead_time_days: Optional[int] = None
 
 
 class SupplierResponse(CamelModel):
@@ -109,6 +110,7 @@ class SupplierResponse(CamelModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
+    lead_time_days: int = 7
     created_at: Optional[datetime] = None
 
 
@@ -131,6 +133,7 @@ class ProductCreate(BaseModel):
     min_stock_level: int = 0
     quantity: int = 0
     unit_of_measure: str = "pcs"
+    lead_time_days: int = 7
 
 
 class ProductUpdate(BaseModel):
@@ -144,6 +147,7 @@ class ProductUpdate(BaseModel):
     min_stock_level: Optional[int] = None
     quantity: Optional[int] = None
     unit_of_measure: Optional[str] = None
+    lead_time_days: Optional[int] = None
 
 
 class ProductResponse(CamelModel):
@@ -159,6 +163,7 @@ class ProductResponse(CamelModel):
     min_stock_level: int
     quantity: int
     unit_of_measure: str
+    lead_time_days: int = 7
     created_at: Optional[datetime] = None
     images: List[ProductImageResponse] = []
 
@@ -178,6 +183,7 @@ class IngredientCreate(BaseModel):
     unit: Optional[str] = None
     min_stock_level: float = 0
     description: Optional[str] = None
+    lead_time_days: int = 7
 
 
 class IngredientUpdate(BaseModel):
@@ -186,6 +192,7 @@ class IngredientUpdate(BaseModel):
     unit: Optional[str] = None
     min_stock_level: Optional[float] = None
     description: Optional[str] = None
+    lead_time_days: Optional[int] = None
 
 
 class IngredientResponse(CamelModel):
@@ -195,6 +202,7 @@ class IngredientResponse(CamelModel):
     unit: Optional[str] = None
     min_stock_level: float
     description: Optional[str] = None
+    lead_time_days: int = 7
     created_at: Optional[datetime] = None
 
 
@@ -291,6 +299,93 @@ class ActivityLogResponse(CamelModel):
     action_type: str
     details: Optional[Any] = None
     created_at: Optional[datetime] = None
+
+
+# ── Dashboard (super admin) ────────────────────────────────────────────────────
+
+class DashboardSummaryResponse(CamelModel):
+    total_users: int
+    total_buy: float
+    total_sell: float
+
+
+class MonthlySalesItem(CamelModel):
+    month: str          # YYYY-MM
+    label: str          # e.g. "Jan 2026"
+    total: float
+
+
+# ── Analytics / IE decision support ────────────────────────────────────────────
+
+class ForecastHistoryPoint(CamelModel):
+    period: str
+    label: str
+    actual: float
+    fitted: Optional[float] = None
+
+
+class ForecastPoint(CamelModel):
+    period: str
+    label: str
+    predicted: float
+
+
+class ProductForecastResponse(CamelModel):
+    product_id: int
+    product_name: str
+    sku: str
+    period: str
+    horizon: int
+    method: str
+    alpha: Optional[float] = None
+    mape_percent: Optional[float] = None
+    next_period_demand: float
+    history: List[ForecastHistoryPoint] = []
+    forecast: List[ForecastPoint] = []
+
+
+class AbcItem(CamelModel):
+    product_id: int
+    name: str
+    sku: str
+    sales_value: float
+    value_share_percent: float
+    cumulative_percent: float
+    abc_class: str
+
+
+class AbcAnalysisResponse(CamelModel):
+    items: List[AbcItem]
+    counts: dict
+
+
+class ReorderPointItem(CamelModel):
+    item_type: str  # product | ingredient
+    item_id: int
+    name: str
+    sku: Optional[str] = None
+    avg_daily_usage: float
+    demand_std_dev: float
+    lead_time_days: int
+    z_score: float
+    safety_stock: float
+    reorder_point: float
+    recommended_order_qty: int
+    current_quantity: float
+    min_stock_level: float
+    below_rop: bool
+    below_min_stock: bool
+    needs_reorder: bool
+
+
+class AnalyticsOverviewResponse(CamelModel):
+    products_below_rop: int
+    ingredients_below_rop: int
+    class_a_count: int
+    class_b_count: int
+    class_c_count: int
+    avg_mape_percent: Optional[float] = None
+    lead_time_days_default: int
 
 
 # ── Generic paginated wrapper ──────────────────────────────────────────────────

@@ -53,7 +53,6 @@ export const useAuthStore = defineStore('auth', () => {
         email: string,
         password: string,
         role: string,
-        companyName: string,
     ): Promise<void> {
         isLoading.value = true;
         error.value = null;
@@ -64,7 +63,6 @@ export const useAuthStore = defineStore('auth', () => {
                 email,
                 password,
                 role,
-                company_name: companyName,
             });
             // No setToken — user must log in manually
         } catch (e: unknown) {

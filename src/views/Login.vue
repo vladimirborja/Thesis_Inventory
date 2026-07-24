@@ -27,7 +27,6 @@ const showLoginPass = ref(false);
 const regName        = ref('');
 const regEmail       = ref('');
 const regPassword    = ref('');
-const regCompany     = ref('');
 const regRole        = ref<UserRole>('employee');
 const showRegPass    = ref(false);
 
@@ -78,7 +77,7 @@ async function handleLogin() {
 }
 
 async function handleRegister() {
-    if (!regName.value || !regEmail.value || !regPassword.value || !regCompany.value) {
+    if (!regName.value || !regEmail.value || !regPassword.value) {
         triggerAlert('All fields are required.', 'error');
         return;
     }
@@ -89,10 +88,10 @@ async function handleRegister() {
     isSubmitting.value = true;
     alertVisible.value = false;
     try {
-        await authStore.register(regName.value, regEmail.value, regPassword.value, regRole.value, regCompany.value);
+        await authStore.register(regName.value, regEmail.value, regPassword.value, regRole.value);
         triggerAlert('Account created! Please sign in.', 'success');
         // Clear form and switch to login (no auto-login)
-        regName.value = regEmail.value = regPassword.value = regCompany.value = '';
+        regName.value = regEmail.value = regPassword.value = '';
         setTimeout(() => { isRegister.value = false; alertVisible.value = false; }, 2000);
     } catch (e: unknown) {
         triggerAlert(e instanceof Error ? e.message : 'Registration failed.', 'error');
@@ -160,14 +159,11 @@ async function handleRegister() {
                             <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Create Account</h3>
                             <div class="field-wrap"><span class="fi"><User :size="16"/></span><input v-model="regName" type="text" class="fi-input" placeholder="Full name" required /></div>
                             <div class="field-wrap"><span class="fi"><Mail :size="16"/></span><input v-model="regEmail" type="email" class="fi-input" placeholder="email@company.com" required /></div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <input v-model="regCompany" type="text" class="fi-input px-3" placeholder="Company" required />
-                                <select v-model="regRole" class="fi-input px-3 bg-white dark:bg-gray-900">
-                                    <option value="employee">Employee</option>
-                                    <option value="admin">Admin</option>
-                                    <option value="super_admin">Super Admin</option>
-                                </select>
-                            </div>
+                            <select v-model="regRole" class="fi-input px-3 bg-white dark:bg-gray-900">
+                                <option value="employee">Employee</option>
+                                <option value="admin">Admin</option>
+                                <option value="super_admin">Super Admin</option>
+                            </select>
                             <div class="field-wrap">
                                 <span class="fi"><Lock :size="16"/></span>
                                 <input v-model="regPassword" :type="showRegPass ? 'text' : 'password'" class="fi-input pr-10" placeholder="Min. 8 characters" required />
@@ -243,22 +239,12 @@ async function handleRegister() {
                     <p class="text-sm text-gray-400 mb-5">Register as an admin or floor operator</p>
 
                     <form @submit.prevent="handleRegister" class="space-y-4">
-                        <div>
-                            <label class="field-label">Full Name</label>
-                            <div class="field-wrap"><span class="fi"><User :size="16"/></span>
-                                <input v-model="regName" type="text" class="fi-input" placeholder="Your full name" required />
-                            </div>
-                        </div>
-                        <div>
-                            <label class="field-label">Email Address</label>
-                            <div class="field-wrap"><span class="fi"><Mail :size="16"/></span>
-                                <input v-model="regEmail" type="email" class="fi-input" placeholder="email@company.com" required />
-                            </div>
-                        </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="field-label">Company</label>
-                                <input v-model="regCompany" type="text" class="fi-input px-3" placeholder="Company name" required />
+                                <label class="field-label">Full Name</label>
+                                <div class="field-wrap"><span class="fi"><User :size="16"/></span>
+                                    <input v-model="regName" type="text" class="fi-input" placeholder="Your full name" required />
+                                </div>
                             </div>
                             <div>
                                 <label class="field-label">Role</label>
@@ -267,6 +253,12 @@ async function handleRegister() {
                                     <option value="admin">Admin</option>
                                     <option value="super_admin">Super Admin</option>
                                 </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="field-label">Email Address</label>
+                            <div class="field-wrap"><span class="fi"><Mail :size="16"/></span>
+                                <input v-model="regEmail" type="email" class="fi-input" placeholder="email@company.com" required />
                             </div>
                         </div>
                         <div>

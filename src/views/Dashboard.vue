@@ -3,11 +3,19 @@ import { computed, ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
-    Users, ShieldAlert, BarChart3, Clock, AlertTriangle, PackageCheck, Truck, ListCollapse, Plus, ArrowUpRight, ArrowDownRight, RefreshCw, Layers
+    Users, ShieldAlert, BarChart3, Clock, AlertTriangle, PackageCheck, Truck,
+    Plus, ArrowUpRight, ArrowDownRight, RefreshCw, Layers, ShoppingCart,
+    TrendingUp, ChevronRight, CalendarDays, FileDown, FileSpreadsheet,
 } from 'lucide-vue-next';
 import { formatCurrency } from '@/composables/useFormatCurrency';
-import type { Product, StockTransaction, User as UserType, Warehouse } from '@/types';
+import type {
+    Product, StockTransaction, User as UserType, Warehouse,
+    DashboardSummary, MonthlySalesItem,
+} from '@/types';
 import { api } from '@/lib/api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 const authStore = useAuthStore();
 
@@ -20,31 +28,108 @@ const users        = ref<UserType[]>([]);
 const warehouses   = ref<Warehouse[]>([]);
 const isLoading    = ref(false);
 
-// Computed stats from API data
+const summary = ref<DashboardSummary>({ totalUsers: 0, totalBuy: 0, totalSell: 0 });
+const monthlySales = ref<MonthlySalesItem[]>([]);
+const salesRange = ref<6 | 12>(6);
+
+const visibleMonthlySales = computed(() =>
+    monthlySales.value.slice(-salesRange.value),
+);
+
+const maxMonthlyTotal = computed(() =>
+    Math.max(1, ...visibleMonthlySales.value.map((m) => m.total)),
+);
+
+// ── Calendar (mini current-month view) ───────────────────────────────────────
+const calendarNow = new Date();
+const calendarYear = calendarNow.getFullYear();
+const calendarMonth = calendarNow.getMonth();
+const calendarMonthLabel = calendarNow.toLocaleString('en-PH', { month: 'short', year: 'numeric' });
+const calendarWeekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+const calendarCells = computed(() => {
+    const firstWeekday = new Date(calendarYear, calendarMonth, 1).getDay();
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const today = calendarNow.getDate();
+    const cells: Array<{ day: number | null; isToday: boolean }> = [];
+    for (let i = 0; i < firstWeekday; i++) cells.push({ day: null, isToday: false });
+    for (let d = 1; d <= daysInMonth; d++) {
+        cells.push({ day: d, isToday: d === today });
+    }
+    return cells;
+});
+
 const totalProducts      = computed(() => products.value.length);
 const lowStockProducts   = computed(() => products.value.filter(p => p.quantity > 0 && p.quantity <= p.minStockLevel));
 const outOfStockProducts = computed(() => products.value.filter(p => p.quantity === 0));
 const totalValuation     = computed(() => products.value.reduce((acc, p) => acc + (p.costPrice * p.quantity), 0));
 
+function exportRows() {
+    return visibleMonthlySales.value.map((m) => ({
+        Month: m.label,
+        'Sales (PHP)': m.total,
+    }));
+}
+
+function exportPdf() {
+    const doc = new jsPDF();
+    const generated = new Date().toLocaleString('en-PH');
+    doc.setFontSize(16);
+    doc.text('Monthly Sales Review', 14, 18);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated ${generated} · Last ${salesRange.value} months`, 14, 26);
+    doc.setTextColor(0);
+    doc.text(`Total Users: ${summary.value.totalUsers}`, 14, 36);
+    doc.text(`Total Buy: ${formatCurrency(summary.value.totalBuy)}`, 14, 42);
+    doc.text(`Total Sell: ${formatCurrency(summary.value.totalSell)}`, 14, 48);
+
+    autoTable(doc, {
+        startY: 56,
+        head: [['Month', 'Sales (PHP)']],
+        body: visibleMonthlySales.value.map((m) => [m.label, formatCurrency(m.total)]),
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [5, 150, 105] },
+    });
+    doc.save(`monthly-sales-${salesRange.value}m.pdf`);
+}
+
+function exportExcel() {
+    const sheet = XLSX.utils.json_to_sheet([
+        { Metric: 'Total Users', Value: summary.value.totalUsers },
+        { Metric: 'Total Buy (PHP)', Value: summary.value.totalBuy },
+        { Metric: 'Total Sell (PHP)', Value: summary.value.totalSell },
+        {},
+        ...exportRows(),
+    ]);
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, 'Sales Review');
+    XLSX.writeFile(book, `monthly-sales-${salesRange.value}m.xlsx`);
+}
+
 async function loadDashboardData() {
     isLoading.value = true;
     try {
-        const fetches: Promise<any>[] = [
+        const fetches: Promise<unknown>[] = [
             api.get<Product[]>('/products'),
             api.get<StockTransaction[]>('/transactions'),
         ];
-        
+
         if (currentRole.value === 'super_admin') {
             fetches.push(api.get<UserType[]>('/users'));
             fetches.push(api.get<Warehouse[]>('/warehouses'));
+            fetches.push(api.get<DashboardSummary>('/dashboard/summary'));
+            fetches.push(api.get<MonthlySalesItem[]>('/sales/monthly-summary?months=12'));
         }
-        
+
         const results = await Promise.all(fetches);
-        products.value = results[0];
-        transactions.value = results[1];
+        products.value = results[0] as Product[];
+        transactions.value = results[1] as StockTransaction[];
         if (currentRole.value === 'super_admin') {
-            users.value = results[2];
-            warehouses.value = results[3];
+            users.value = results[2] as UserType[];
+            warehouses.value = results[3] as Warehouse[];
+            summary.value = results[4] as DashboardSummary;
+            monthlySales.value = results[5] as MonthlySalesItem[];
         }
     } catch (err) {
         console.error('Error loading dashboard data:', err);
@@ -111,12 +196,12 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
             <!-- 1. SUPER ADMIN VIEW                        -->
             <!-- ========================================== -->
             <div v-if="currentRole === 'super_admin'" class="space-y-6">
-                <!-- Stat Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- 1. Summary: Total Users / Total Buy / Total Sell -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
                         <div>
-                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Active Users</p>
-                            <p class="text-2xl font-extrabold mt-2">{{ users.length }}</p>
+                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Users</p>
+                            <p class="text-2xl font-extrabold mt-2">{{ summary.totalUsers }}</p>
                         </div>
                         <div class="h-12 w-12 bg-blue-50 dark:bg-blue-950/20 text-blue-600 rounded-xl flex items-center justify-center">
                             <Users :size="22" />
@@ -125,31 +210,142 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
 
                     <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
                         <div>
-                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Audit logs generated</p>
-                            <p class="text-2xl font-extrabold mt-2">{{ transactions.length }}</p>
-                        </div>
-                        <div class="h-12 w-12 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 rounded-xl flex items-center justify-center">
-                            <Clock :size="22" />
-                        </div>
-                    </div>
-
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Critical alerts</p>
-                            <p class="text-2xl font-extrabold mt-2 text-amber-500">{{ lowStockProducts.length + outOfStockProducts.length }}</p>
-                        </div>
-                        <div class="h-12 w-12 bg-amber-50 dark:bg-amber-950/20 text-amber-500 rounded-xl flex items-center justify-center">
-                            <ShieldAlert :size="22" />
-                        </div>
-                    </div>
-
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
-                        <div>
-                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Storage Nodes</p>
-                            <p class="text-2xl font-extrabold mt-2">{{ warehouses.length }}</p>
+                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Buy</p>
+                            <p class="text-2xl font-extrabold mt-2 text-emerald-600">{{ formatCurrency(summary.totalBuy) }}</p>
+                            <p class="text-[10px] text-gray-400 mt-1">Stock-in × cost price</p>
                         </div>
                         <div class="h-12 w-12 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 rounded-xl flex items-center justify-center">
-                            <Layers :size="22" />
+                            <ShoppingCart :size="22" />
+                        </div>
+                    </div>
+
+                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Sell</p>
+                            <p class="text-2xl font-extrabold mt-2 text-indigo-600">{{ formatCurrency(summary.totalSell) }}</p>
+                            <p class="text-[10px] text-gray-400 mt-1">All recorded sales</p>
+                        </div>
+                        <div class="h-12 w-12 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 rounded-xl flex items-center justify-center">
+                            <TrendingUp :size="22" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary ops metrics -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Audit logs</p>
+                            <p class="text-xl font-extrabold mt-1">{{ transactions.length }}</p>
+                        </div>
+                        <Clock :size="20" class="text-indigo-500" />
+                    </div>
+                    <div class="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Critical alerts</p>
+                            <p class="text-xl font-extrabold mt-1 text-amber-500">{{ lowStockProducts.length + outOfStockProducts.length }}</p>
+                        </div>
+                        <ShieldAlert :size="20" class="text-amber-500" />
+                    </div>
+                    <div class="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Storage nodes</p>
+                            <p class="text-xl font-extrabold mt-1">{{ warehouses.length }}</p>
+                        </div>
+                        <Layers :size="20" class="text-emerald-600" />
+                    </div>
+                </div>
+
+                <!-- Sales review + mini calendar (compact side-by-side) -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <!-- Monthly Sales Review -->
+                    <div class="lg:col-span-2 p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                            <div>
+                                <h3 class="font-bold text-base flex items-center gap-2">
+                                    <BarChart3 :size="16" class="text-emerald-600" />
+                                    Monthly Sales
+                                </h3>
+                                <p class="text-[11px] text-gray-400 mt-0.5">Amounts in ₱ · hover a bar for detail</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-[11px] font-semibold">
+                                    <button
+                                        type="button"
+                                        class="px-2.5 py-1.5 transition"
+                                        :class="salesRange === 6 ? 'bg-emerald-600 text-white' : 'bg-transparent text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                                        @click="salesRange = 6"
+                                    >6 mo</button>
+                                    <button
+                                        type="button"
+                                        class="px-2.5 py-1.5 transition border-l border-gray-200 dark:border-gray-700"
+                                        :class="salesRange === 12 ? 'bg-emerald-600 text-white' : 'bg-transparent text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                                        @click="salesRange = 12"
+                                    >12 mo</button>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-[11px] font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                                    @click="exportPdf"
+                                >
+                                    <FileDown :size="13" /> PDF
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-900/40 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition"
+                                    @click="exportExcel"
+                                >
+                                    <FileSpreadsheet :size="13" /> Excel
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-end gap-1.5 h-28">
+                            <div
+                                v-for="m in visibleMonthlySales"
+                                :key="m.month"
+                                class="flex-1 flex flex-col items-center justify-end h-full gap-1 group relative"
+                            >
+                                <span class="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-gray-600 dark:text-gray-300 opacity-0 group-hover:opacity-100 transition whitespace-nowrap bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded shadow-sm border border-gray-100 dark:border-gray-700 z-10">
+                                    {{ formatCurrency(m.total) }}
+                                </span>
+                                <div
+                                    class="w-full max-w-[36px] mx-auto rounded-t-md bg-emerald-500/80 dark:bg-emerald-500/60 group-hover:bg-emerald-600 transition"
+                                    :style="{ height: `${Math.max(6, (m.total / maxMonthlyTotal) * 100)}%` }"
+                                />
+                                <span class="text-[9px] text-gray-400 font-medium">{{ m.label.split(' ')[0] }}</span>
+                            </div>
+                        </div>
+                        <p v-if="visibleMonthlySales.length === 0" class="text-center text-xs text-gray-400 py-6">No sales data yet.</p>
+                    </div>
+
+                    <!-- Mini calendar -->
+                    <div class="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-bold text-sm flex items-center gap-1.5">
+                                <CalendarDays :size="14" class="text-emerald-600" />
+                                {{ calendarMonthLabel }}
+                            </h3>
+                            <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+                                Today {{ calendarNow.getDate() }}
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-7 gap-0.5 text-center text-[9px] font-semibold text-gray-400 mb-1">
+                            <span v-for="(wd, i) in calendarWeekdays" :key="i">{{ wd }}</span>
+                        </div>
+                        <div class="grid grid-cols-7 gap-0.5">
+                            <div
+                                v-for="(cell, idx) in calendarCells"
+                                :key="idx"
+                                class="h-7 flex items-center justify-center rounded-md text-[11px]"
+                                :class="cell.day === null
+                                    ? ''
+                                    : cell.isToday
+                                        ? 'bg-emerald-600 text-white font-bold'
+                                        : 'text-gray-600 dark:text-gray-300'"
+                            >
+                                {{ cell.day ?? '' }}
+                            </div>
                         </div>
                     </div>
                 </div>

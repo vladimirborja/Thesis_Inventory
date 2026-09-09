@@ -5,6 +5,9 @@
 -- =============================================================================
 
 -- Drop in reverse dependency order (idempotent re-run)
+DROP TABLE IF EXISTS cash_denominations       CASCADE;
+DROP TABLE IF EXISTS daily_transaction_items  CASCADE;
+DROP TABLE IF EXISTS daily_transactions       CASCADE;
 DROP TABLE IF EXISTS demand_forecasts   CASCADE;
 DROP TABLE IF EXISTS activity_logs      CASCADE;
 DROP TABLE IF EXISTS sale_items         CASCADE;
@@ -149,6 +152,56 @@ CREATE TABLE activity_logs (
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- ── Daily Transaction Reports (employee field sales) ────────────────────────────
+CREATE TABLE daily_transactions (
+    id                SERIAL PRIMARY KEY,
+    user_id           INT            NOT NULL REFERENCES users(id),
+    report_date       DATE           NOT NULL,
+    client_name       VARCHAR(255),
+    total_sales       NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    cash_collection   NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    checks_collection NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    credit_sales      NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    expenses          NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    balance           NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    status            VARCHAR(20)    NOT NULL DEFAULT 'draft'
+                          CHECK (status IN ('draft', 'submitted')),
+    notes             TEXT,
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (user_id, report_date)
+);
+
+CREATE TABLE daily_transaction_items (
+    id                 SERIAL PRIMARY KEY,
+    transaction_id     INT            NOT NULL REFERENCES daily_transactions(id) ON DELETE CASCADE,
+    category           VARCHAR(100)   NOT NULL,
+    product_name       VARCHAR(255)   NOT NULL,
+    weight             VARCHAR(50),
+    load_in            VARCHAR(50),
+    load_out_bundle    VARCHAR(50),
+    load_out_piece     NUMERIC(12, 3),
+    sales_bundle       NUMERIC(12, 3),
+    sales_piece        NUMERIC(12, 3),
+    sales_peso_bundle  NUMERIC(12, 2),
+    sales_peso_piece   NUMERIC(12, 2),
+    total_sales        NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    sort_order         INT            NOT NULL DEFAULT 0
+);
+
+CREATE TABLE cash_denominations (
+    id             SERIAL PRIMARY KEY,
+    transaction_id INT            NOT NULL UNIQUE REFERENCES daily_transactions(id) ON DELETE CASCADE,
+    bill_1000      INT            NOT NULL DEFAULT 0,
+    bill_500       INT            NOT NULL DEFAULT 0,
+    bill_200       INT            NOT NULL DEFAULT 0,
+    bill_100       INT            NOT NULL DEFAULT 0,
+    bill_50        INT            NOT NULL DEFAULT 0,
+    bill_20        INT            NOT NULL DEFAULT 0,
+    coins          NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    total_amount   NUMERIC(12, 2) NOT NULL DEFAULT 0
+);
+
 -- ── Demand Forecast Snapshots (analytics) ─────────────────────────────────────
 CREATE TABLE demand_forecasts (
     id            SERIAL PRIMARY KEY,
@@ -175,6 +228,10 @@ CREATE INDEX idx_sale_items_product   ON sale_items(product_id);
 CREATE INDEX idx_forecasts_product    ON demand_forecasts(product_id);
 CREATE INDEX idx_forecasts_generated  ON demand_forecasts(generated_at DESC);
 CREATE INDEX idx_forecasts_period     ON demand_forecasts(period_type, period_key);
+CREATE INDEX idx_daily_tx_user        ON daily_transactions(user_id);
+CREATE INDEX idx_daily_tx_date        ON daily_transactions(report_date DESC);
+CREATE INDEX idx_daily_tx_status      ON daily_transactions(status);
+CREATE INDEX idx_daily_items_tx       ON daily_transaction_items(transaction_id);
 
 -- =============================================================================
 -- INCREMENTAL MIGRATION (safe for existing Neon / production data)
@@ -207,5 +264,59 @@ CREATE INDEX IF NOT EXISTS idx_sale_items_product  ON sale_items(product_id);
 CREATE INDEX IF NOT EXISTS idx_forecasts_product   ON demand_forecasts(product_id);
 CREATE INDEX IF NOT EXISTS idx_forecasts_generated ON demand_forecasts(generated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_forecasts_period    ON demand_forecasts(period_type, period_key);
+
+CREATE TABLE IF NOT EXISTS daily_transactions (
+    id                SERIAL PRIMARY KEY,
+    user_id           INT            NOT NULL REFERENCES users(id),
+    report_date       DATE           NOT NULL,
+    client_name       VARCHAR(255),
+    total_sales       NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    cash_collection   NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    checks_collection NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    credit_sales      NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    expenses          NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    balance           NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    status            VARCHAR(20)    NOT NULL DEFAULT 'draft'
+                          CHECK (status IN ('draft', 'submitted')),
+    notes             TEXT,
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (user_id, report_date)
+);
+
+CREATE TABLE IF NOT EXISTS daily_transaction_items (
+    id                 SERIAL PRIMARY KEY,
+    transaction_id     INT            NOT NULL REFERENCES daily_transactions(id) ON DELETE CASCADE,
+    category           VARCHAR(100)   NOT NULL,
+    product_name       VARCHAR(255)   NOT NULL,
+    weight             VARCHAR(50),
+    load_in            VARCHAR(50),
+    load_out_bundle    VARCHAR(50),
+    load_out_piece     NUMERIC(12, 3),
+    sales_bundle       NUMERIC(12, 3),
+    sales_piece        NUMERIC(12, 3),
+    sales_peso_bundle  NUMERIC(12, 2),
+    sales_peso_piece   NUMERIC(12, 2),
+    total_sales        NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    sort_order         INT            NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS cash_denominations (
+    id             SERIAL PRIMARY KEY,
+    transaction_id INT            NOT NULL UNIQUE REFERENCES daily_transactions(id) ON DELETE CASCADE,
+    bill_1000      INT            NOT NULL DEFAULT 0,
+    bill_500       INT            NOT NULL DEFAULT 0,
+    bill_200       INT            NOT NULL DEFAULT 0,
+    bill_100       INT            NOT NULL DEFAULT 0,
+    bill_50        INT            NOT NULL DEFAULT 0,
+    bill_20        INT            NOT NULL DEFAULT 0,
+    coins          NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    total_amount   NUMERIC(12, 2) NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_tx_user   ON daily_transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_daily_tx_date   ON daily_transactions(report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_tx_status ON daily_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_daily_items_tx  ON daily_transaction_items(transaction_id);
 -- END INCREMENTAL
 -- =============================================================================

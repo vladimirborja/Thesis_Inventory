@@ -20,7 +20,8 @@ from slowapi.util import get_remote_address
 
 from api.routers import (
     auth, products, suppliers, warehouses,
-    transactions, ingredients, sales, users, activity, categories, dashboard, analytics
+    transactions, ingredients, sales, users, activity, categories, dashboard, analytics,
+    daily_reports,
 )
 
 # ── Lifespan (create tables on first cold-start if needed) ─────────────────────
@@ -85,3 +86,4 @@ app.include_router(users.router,        prefix="/api/users",        tags=["Users
 app.include_router(activity.router,     prefix="/api/activity",     tags=["Activity"])
 app.include_router(dashboard.router,    prefix="/api/dashboard",    tags=["Dashboard"])
 app.include_router(analytics.router,    prefix="/api/analytics",    tags=["Analytics"])
+app.include_router(daily_reports.router, prefix="/api/daily-reports", tags=["Daily Reports"])

@@ -5,7 +5,7 @@ All response schemas use alias_generator=to_camel so the JSON output is
 camelCase — matching the existing TypeScript frontend types.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, List, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 from pydantic.alias_generators import to_camel
@@ -386,6 +386,112 @@ class AnalyticsOverviewResponse(CamelModel):
     class_c_count: int
     avg_mape_percent: Optional[float] = None
     lead_time_days_default: int
+
+
+# ── Daily Transaction Reports ───────────────────────────────────────────────────
+
+class DailyReportItemCreate(BaseModel):
+    category: str
+    product_name: str
+    weight: Optional[str] = None
+    load_in: Optional[str] = None
+    load_out_bundle: Optional[str] = None
+    load_out_piece: Optional[float] = None
+    sales_bundle: Optional[float] = None
+    sales_piece: Optional[float] = None
+    sales_peso_bundle: Optional[float] = None
+    sales_peso_piece: Optional[float] = None
+    total_sales: float = 0
+    sort_order: int = 0
+
+
+class CashDenominationCreate(BaseModel):
+    bill_1000: int = 0
+    bill_500: int = 0
+    bill_200: int = 0
+    bill_100: int = 0
+    bill_50: int = 0
+    bill_20: int = 0
+    coins: float = 0
+
+
+class DailyReportCreate(BaseModel):
+    report_date: date
+    client_name: Optional[str] = None
+    cash_collection: float = 0
+    checks_collection: float = 0
+    credit_sales: float = 0
+    expenses: float = 0
+    balance: float = 0
+    status: str = "draft"
+    notes: Optional[str] = None
+    items: List[DailyReportItemCreate]
+    denominations: CashDenominationCreate
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        if v not in ("draft", "submitted"):
+            raise ValueError("Status must be draft or submitted")
+        return v
+
+
+class DailyReportItemResponse(CamelModel):
+    id: int
+    category: str
+    product_name: str
+    weight: Optional[str] = None
+    load_in: Optional[str] = None
+    load_out_bundle: Optional[str] = None
+    load_out_piece: Optional[float] = None
+    sales_bundle: Optional[float] = None
+    sales_piece: Optional[float] = None
+    sales_peso_bundle: Optional[float] = None
+    sales_peso_piece: Optional[float] = None
+    total_sales: float
+    sort_order: int
+
+
+class CashDenominationResponse(CamelModel):
+    id: int
+    bill_1000: int
+    bill_500: int
+    bill_200: int
+    bill_100: int
+    bill_50: int
+    bill_20: int
+    coins: float
+    total_amount: float
+
+
+class DailyReportResponse(CamelModel):
+    id: int
+    user_id: int
+    user_name: Optional[str] = None
+    report_date: date
+    client_name: Optional[str] = None
+    total_sales: float
+    cash_collection: float
+    checks_collection: float
+    credit_sales: float
+    expenses: float
+    balance: float
+    status: str
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    items: List[DailyReportItemResponse] = []
+    denominations: Optional[CashDenominationResponse] = None
+
+
+class DailyReportAggregateRow(CamelModel):
+    period_key: str
+    label: str
+    report_count: int
+    total_sales: float
+    cash_collection: float
+    expenses: float
+    balance: float
 
 
 # ── Generic paginated wrapper ──────────────────────────────────────────────────

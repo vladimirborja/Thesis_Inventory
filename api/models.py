@@ -2,10 +2,10 @@
 api/models.py — SQLAlchemy ORM models (all tables)
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 from sqlalchemy import (
-    Integer, String, Text, Numeric, DateTime, ForeignKey,
+    Integer, String, Text, Numeric, DateTime, Date, ForeignKey,
     CheckConstraint, UniqueConstraint, JSON
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,6 +30,7 @@ class User(Base):
     transactions: Mapped[List["StockTransaction"]] = relationship("StockTransaction", back_populates="user")
     sales:        Mapped[List["Sale"]]             = relationship("Sale", back_populates="user")
     activity:     Mapped[List["ActivityLog"]]      = relationship("ActivityLog", back_populates="user")
+    daily_reports: Mapped[List["DailyTransaction"]] = relationship("DailyTransaction", back_populates="user")
 
     __table_args__ = (
         CheckConstraint("role IN ('super_admin', 'admin', 'employee')", name="ck_user_role"),
@@ -241,3 +242,75 @@ class DemandForecast(Base):
     generated_at:       Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     product: Mapped["Product"] = relationship("Product", back_populates="forecasts")
+
+
+# ── Daily Transaction Reports ──────────────────────────────────────────────────
+
+class DailyTransaction(Base):
+    __tablename__ = "daily_transactions"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'submitted')", name="ck_daily_tx_status"),
+        UniqueConstraint("user_id", "report_date", name="uq_daily_tx_user_date"),
+    )
+
+    id:                Mapped[int]           = mapped_column(Integer, primary_key=True, index=True)
+    user_id:           Mapped[int]           = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    report_date:       Mapped[date]          = mapped_column(Date, nullable=False, index=True)
+    client_name:       Mapped[Optional[str]] = mapped_column(String(255))
+    total_sales:       Mapped[float]         = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    cash_collection:   Mapped[float]         = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    checks_collection: Mapped[float]         = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    credit_sales:      Mapped[float]         = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    expenses:          Mapped[float]         = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    balance:           Mapped[float]         = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    status:            Mapped[str]           = mapped_column(String(20), nullable=False, default="draft")
+    notes:             Mapped[Optional[str]] = mapped_column(Text)
+    created_at:        Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at:        Mapped[datetime]      = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user:          Mapped["User"]                      = relationship("User", back_populates="daily_reports")
+    items:         Mapped[List["DailyTransactionItem"]] = relationship(
+        "DailyTransactionItem", back_populates="transaction", cascade="all, delete-orphan",
+        order_by="DailyTransactionItem.sort_order",
+    )
+    denominations: Mapped[Optional["CashDenomination"]] = relationship(
+        "CashDenomination", back_populates="transaction", cascade="all, delete-orphan", uselist=False,
+    )
+
+
+class DailyTransactionItem(Base):
+    __tablename__ = "daily_transaction_items"
+
+    id:                Mapped[int]           = mapped_column(Integer, primary_key=True)
+    transaction_id:    Mapped[int]           = mapped_column(Integer, ForeignKey("daily_transactions.id", ondelete="CASCADE"), nullable=False, index=True)
+    category:          Mapped[str]           = mapped_column(String(100), nullable=False)
+    product_name:      Mapped[str]           = mapped_column(String(255), nullable=False)
+    weight:            Mapped[Optional[str]] = mapped_column(String(50))
+    load_in:           Mapped[Optional[str]] = mapped_column(String(50))
+    load_out_bundle:   Mapped[Optional[str]] = mapped_column(String(50))
+    load_out_piece:    Mapped[Optional[float]] = mapped_column(Numeric(12, 3))
+    sales_bundle:      Mapped[Optional[float]] = mapped_column(Numeric(12, 3))
+    sales_piece:       Mapped[Optional[float]] = mapped_column(Numeric(12, 3))
+    sales_peso_bundle: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    sales_peso_piece:  Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    total_sales:       Mapped[float]         = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    sort_order:        Mapped[int]           = mapped_column(Integer, nullable=False, default=0)
+
+    transaction: Mapped["DailyTransaction"] = relationship("DailyTransaction", back_populates="items")
+
+
+class CashDenomination(Base):
+    __tablename__ = "cash_denominations"
+
+    id:             Mapped[int]   = mapped_column(Integer, primary_key=True)
+    transaction_id: Mapped[int]   = mapped_column(Integer, ForeignKey("daily_transactions.id", ondelete="CASCADE"), unique=True, nullable=False)
+    bill_1000:      Mapped[int]   = mapped_column(Integer, nullable=False, default=0)
+    bill_500:       Mapped[int]   = mapped_column(Integer, nullable=False, default=0)
+    bill_200:       Mapped[int]   = mapped_column(Integer, nullable=False, default=0)
+    bill_100:       Mapped[int]   = mapped_column(Integer, nullable=False, default=0)
+    bill_50:        Mapped[int]   = mapped_column(Integer, nullable=False, default=0)
+    bill_20:        Mapped[int]   = mapped_column(Integer, nullable=False, default=0)
+    coins:          Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    total_amount:   Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+
+    transaction: Mapped["DailyTransaction"] = relationship("DailyTransaction", back_populates="denominations")

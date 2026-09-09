@@ -18,7 +18,7 @@ load_dotenv()
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+import bcrypt
 
 from api.models import (
     Base, User, Category, Warehouse, Supplier,
@@ -27,7 +27,6 @@ from api.models import (
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 engine = create_engine(DATABASE_URL)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 print("Creating tables...")
 Base.metadata.create_all(bind=engine)
@@ -40,7 +39,7 @@ with Session(engine) as db:
 
     # ── Users ────────────────────────────────────────────────────────────────
     # Default password for ALL demo accounts: admin123
-    DEFAULT_PASSWORD = pwd_context.hash("admin123")
+    DEFAULT_PASSWORD = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode("utf-8")
     COMPANY = "Duque Food Products"
 
     users = [
@@ -49,7 +48,7 @@ with Session(engine) as db:
         User(name="Plant Admin", email="admin@duquefood.com", password=DEFAULT_PASSWORD,
              role="admin", company_name=COMPANY),
         User(name="Floor Operator", email="employee@duquefood.com", password=DEFAULT_PASSWORD,
-             role="employee", company_name=COMPANY),
+             role="employee", company_name=COMPANY, can_input_transactions=True),
     ]
     db.add_all(users)
     db.flush()

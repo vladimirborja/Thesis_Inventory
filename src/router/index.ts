@@ -14,42 +14,44 @@ const router = createRouter({
         { path: '/ingredients', name: 'ingredients',  component: () => import('@/views/Ingredients.vue'),  meta: { requiresAuth: true } },
         { path: '/sales',       name: 'sales',        component: () => import('@/views/Sales.vue'),        meta: { requiresAuth: true } },
         { path: '/suppliers',   name: 'suppliers',    component: () => import('@/views/Suppliers.vue'),    meta: { requiresAuth: true } },
-        { path: '/transactions',name: 'transactions', component: () => import('@/views/Transactions.vue'), meta: { requiresAuth: true } },
-        { path: '/users',       name: 'users',        component: () => import('@/views/Users.vue'),        meta: { requiresAuth: true, roles: ['super_admin'] } },
+        { path: '/transactions',   name: 'transactions',   component: () => import('@/views/Transactions.vue'),  meta: { requiresAuth: true } },
+        { path: '/users',       name: 'users',        component: () => import('@/views/Users.vue'),        meta: { requiresAuth: true, roles: ['admin', 'super_admin'] } },
         // 404 — must be last
         { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue') },
     ],
 });
 
-// Async route guard — validates JWT via /api/auth/me on every navigation
-router.beforeEach(async (to, _from, next) => {
+// Route guard — validates auth and role access on every navigation
+router.beforeEach(async (to) => {
     const authStore = useAuthStore();
 
-    // Only call initSession once per page lifecycle (skip if already hydrated)
+    // Hydrate session from stored token once per page lifecycle
     if (!authStore.currentUser) {
         await authStore.initSession();
     }
 
     const isAuthenticated = authStore.isAuthenticated;
 
+    // Logged-in users bounced away from login page
     if (to.name === 'auth' && isAuthenticated) {
-        // Logged-in users can't access login page
-        return next({ name: 'dashboard' });
+        return { name: 'dashboard' };
     }
 
+    // Unauthenticated users blocked from protected routes
     if (to.meta.requiresAuth && !isAuthenticated) {
-        // Not logged in — redirect to auth
-        return next({ name: 'auth' });
+        return { name: 'auth' };
     }
 
+    // Role-restricted routes — redirect to dashboard if not allowed
     if (to.meta.roles && isAuthenticated) {
         const allowed = to.meta.roles as string[];
         if (!allowed.includes(authStore.currentUser!.role)) {
-            return next({ name: 'dashboard' });
+            return { name: 'dashboard' };
         }
     }
 
-    next();
+    // Allow navigation
+    return true;
 });
 
 export default router;

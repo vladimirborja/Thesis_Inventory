@@ -8,6 +8,7 @@ export interface User {
     email: string;
     role: UserRole;
     companyName?: string;
+    canInputTransactions?: boolean;
     createdAt?: string;
 }
 

@@ -25,6 +25,7 @@ class User(Base):
     password:     Mapped[str]            = mapped_column(String(255), nullable=False)
     role:         Mapped[str]            = mapped_column(String(20), nullable=False, default="employee")
     company_name: Mapped[Optional[str]]  = mapped_column(String(255))
+    can_input_transactions: Mapped[bool] = mapped_column(default=False, nullable=False)
     created_at:   Mapped[datetime]       = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     transactions: Mapped[List["StockTransaction"]] = relationship("StockTransaction", back_populates="user")

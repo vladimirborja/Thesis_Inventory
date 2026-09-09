@@ -21,6 +21,7 @@ const authStore = useAuthStore();
 
 const currentRole = computed(() => authStore.currentUser?.role || 'employee');
 const userName    = computed(() => authStore.currentUser?.name || 'User');
+const canInput    = computed(() => authStore.currentUser?.canInputTransactions ?? false);
 
 const products     = ref<Product[]>([]);
 const transactions = ref<StockTransaction[]>([]);
@@ -544,9 +545,9 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
             </div>
 
             <!-- ========================================== -->
-            <!-- 3. EMPLOYEE / OPERATOR VIEW                -->
+            <!-- 3. EMPLOYEE — DATA ENTRY (canInput=true)  -->
             <!-- ========================================== -->
-            <div v-if="currentRole === 'employee'" class="space-y-6">
+            <div v-if="currentRole === 'employee' && canInput" class="space-y-6">
                 <!-- Employee widgets -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Scanner Simulator Panel -->
@@ -558,7 +559,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                             </span>
                         </div>
                         <p class="text-xs text-gray-500 mb-6">
-                            Simulate warehouse barcode scanning by entering a product SKU (e.g. <span class="font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">RM-FLOUR-001</span>) or Barcode (<span class="font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">4801234567011</span>).
+                            Simulate warehouse barcode scanning by entering a product SKU (e.g. <span class="font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">DFP-LONG-001</span>) or Barcode (<span class="font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">4809001001001</span>).
                         </p>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -670,6 +671,126 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 4. EMPLOYEE — VIEWER (canInput=false)      -->
+            <!-- ========================================== -->
+            <div v-if="currentRole === 'employee' && !canInput" class="space-y-6">
+                <!-- Read-only stat cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Products</p>
+                            <p class="text-2xl font-extrabold mt-2">{{ totalProducts }}</p>
+                        </div>
+                        <div class="h-12 w-12 bg-blue-50 dark:bg-blue-950/20 text-blue-600 rounded-xl flex items-center justify-center">
+                            <PackageCheck :size="22" />
+                        </div>
+                    </div>
+
+                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Inventory Value</p>
+                            <p class="text-2xl font-extrabold mt-2 text-emerald-600">{{ formatCurrency(totalValuation) }}</p>
+                        </div>
+                        <div class="h-12 w-12 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 rounded-xl flex items-center justify-center">
+                            <BarChart3 :size="22" />
+                        </div>
+                    </div>
+
+                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Low Stock Items</p>
+                            <p class="text-2xl font-extrabold mt-2" :class="lowStockProducts.length > 0 ? 'text-amber-500' : ''">{{ lowStockProducts.length }}</p>
+                        </div>
+                        <div class="h-12 w-12 bg-amber-50 dark:bg-amber-950/20 text-amber-500 rounded-xl flex items-center justify-center">
+                            <AlertTriangle :size="22" />
+                        </div>
+                    </div>
+
+                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Out of Stock</p>
+                            <p class="text-2xl font-extrabold mt-2" :class="outOfStockProducts.length > 0 ? 'text-red-500' : ''">{{ outOfStockProducts.length }}</p>
+                        </div>
+                        <div class="h-12 w-12 bg-red-50 dark:bg-red-950/20 text-red-500 rounded-xl flex items-center justify-center">
+                            <ShieldAlert :size="22" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Read-only panels -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Recent Transactions (read-only) -->
+                    <div class="p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl lg:col-span-2">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-lg">Recent Stock Movements</h3>
+                            <router-link to="/transactions" class="text-emerald-600 hover:underline text-xs flex items-center gap-1">
+                                View All <ArrowUpRight :size="14" />
+                            </router-link>
+                        </div>
+                        <div v-if="transactions.length === 0" class="py-8 text-center text-gray-400 text-sm">
+                            No transactions recorded yet.
+                        </div>
+                        <div v-else class="space-y-2">
+                            <div v-for="t in transactions.slice(0, 8)" :key="t.id" 
+                                class="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-850 border border-gray-100 dark:border-gray-800/50"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <div class="h-8 w-8 rounded-lg flex items-center justify-center"
+                                        :class="t.type === 'stock-in' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600' : t.type === 'stock-out' ? 'bg-red-50 dark:bg-red-950/20 text-red-500' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'"
+                                    >
+                                        <ArrowUpRight v-if="t.type === 'stock-in'" :size="14" />
+                                        <ArrowDownRight v-else-if="t.type === 'stock-out'" :size="14" />
+                                        <RefreshCw v-else :size="14" />
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold text-gray-800 dark:text-gray-200">{{ t.referenceNumber || t.type }}</p>
+                                        <p class="text-[10px] text-gray-400">{{ t.notes || 'No notes' }}</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-sm" :class="t.type === 'stock-in' ? 'text-emerald-600' : t.type === 'stock-out' ? 'text-red-500' : 'text-gray-500'">
+                                    {{ t.type === 'stock-in' ? '+' : '-' }}{{ t.quantity }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Inventory summary -->
+                    <div class="p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl flex flex-col justify-between">
+                        <div class="space-y-4">
+                            <h3 class="font-bold text-lg">Inventory Overview</h3>
+                            <p class="text-xs text-gray-500 leading-relaxed">
+                                Read-only view of current stock levels. Contact an admin if you need transaction input access.
+                            </p>
+                            
+                            <div class="space-y-2 pt-2 text-xs">
+                                <div v-for="p in products.slice(0, 5)" :key="p.id" class="p-3 bg-gray-50 dark:bg-gray-850 rounded-xl border border-gray-100 dark:border-gray-800/80">
+                                    <div class="flex items-center justify-between">
+                                        <p class="font-bold truncate text-gray-800 dark:text-gray-200">{{ p.name }}</p>
+                                        <span class="font-bold" :class="p.quantity <= p.minStockLevel ? 'text-amber-500' : 'text-emerald-600'">
+                                            {{ p.quantity }} {{ p.unitOfMeasure }}
+                                        </span>
+                                    </div>
+                                    <div class="mt-1.5">
+                                        <div class="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                                            <div class="h-full rounded-full transition-all"
+                                                :class="p.quantity === 0 ? 'bg-red-500' : p.quantity <= p.minStockLevel ? 'bg-amber-500' : 'bg-emerald-500'"
+                                                :style="{ width: `${Math.min(100, (p.quantity / Math.max(p.minStockLevel * 2, 1)) * 100)}%` }"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/30 rounded-2xl text-xs text-blue-800 dark:text-blue-400">
+                            <p class="font-bold flex items-center gap-1.5"><Layers :size="14" /> Viewer Mode</p>
+                            <p class="mt-1 leading-relaxed opacity-90">You have read-only access. Request transaction input permissions from your admin to perform stock adjustments.</p>
                         </div>
                     </div>
                 </div>

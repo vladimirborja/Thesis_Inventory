@@ -10,7 +10,7 @@ from sqlalchemy import extract, func
 from sqlalchemy.orm import Session, joinedload
 
 from api.database import get_db
-from api.dependencies import get_current_user, require_admin, log_activity
+from api.dependencies import get_current_user, require_admin, require_transaction_input, log_activity
 from api.models import (
     DailyTransaction, DailyTransactionItem, CashDenomination, User,
 )
@@ -136,6 +136,30 @@ def aggregate_reports(
     return [DailyReportAggregateRow(**{k: round(v, 2) if isinstance(v, float) else v for k, v in r.items()}) for r in rows]
 
 
+@router.get("/by-date/{report_date}", response_model=DailyReportResponse)
+def get_report_by_date(
+    report_date: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tx = (
+        db.query(DailyTransaction)
+        .options(
+            joinedload(DailyTransaction.items),
+            joinedload(DailyTransaction.denominations),
+            joinedload(DailyTransaction.user),
+        )
+        .filter(
+            DailyTransaction.user_id == current_user.id,
+            DailyTransaction.report_date == report_date
+        )
+        .first()
+    )
+    if not tx:
+        raise HTTPException(status_code=404, detail="No report found for this date")
+    return _enrich_report(tx)
+
+
 @router.get("/{report_id}", response_model=DailyReportResponse)
 def get_report(
     report_id: int,
@@ -152,7 +176,7 @@ def get_report(
 def create_report(
     body: DailyReportCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_transaction_input),
 ):
     existing = (
         db.query(DailyTransaction)
@@ -220,7 +244,7 @@ def update_report(
     report_id: int,
     body: DailyReportCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_transaction_input),
 ):
     tx = _load_report(db, report_id)
     if not _can_access(current_user, tx):
@@ -264,3 +288,114 @@ def update_report(
     log_activity(db, current_user.id, "daily-report-update", {"report_id": tx.id})
     db.commit()
     return _enrich_report(_load_report(db, tx.id))
+
+
+@router.post("/upsert", response_model=DailyReportResponse, status_code=200)
+def upsert_report(
+    body: DailyReportCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_transaction_input),
+):
+    """
+    Create a new daily report, or fully replace an existing one for the same
+    (user_id, report_date) pair.  The frontend never needs to track report IDs.
+    """
+    total_sales = round(sum(float(i.total_sales) for i in body.items), 2)
+    denom_total = calc_denom_total(
+        body.denominations.bill_1000,
+        body.denominations.bill_500,
+        body.denominations.bill_200,
+        body.denominations.bill_100,
+        body.denominations.bill_50,
+        body.denominations.bill_20,
+        body.denominations.coins,
+    )
+
+    existing = (
+        db.query(DailyTransaction)
+        .filter(
+            DailyTransaction.user_id == current_user.id,
+            DailyTransaction.report_date == body.report_date,
+        )
+        .first()
+    )
+
+    if existing:
+        # ── UPDATE path ──────────────────────────────────────────────────────
+        # Admins can always overwrite; employees can only overwrite their own drafts
+        if existing.status == "submitted" and current_user.role not in ("admin", "super_admin"):
+            raise HTTPException(
+                status_code=400,
+                detail="A submitted report already exists for this date. Ask an admin to unlock it.",
+            )
+        tx = existing
+        tx.report_date      = body.report_date
+        tx.client_name      = body.client_name
+        tx.total_sales      = total_sales
+        tx.cash_collection  = body.cash_collection
+        tx.checks_collection = body.checks_collection
+        tx.credit_sales     = body.credit_sales
+        tx.expenses         = body.expenses
+        tx.balance          = body.balance
+        tx.status           = body.status
+        tx.notes            = body.notes
+
+        db.query(DailyTransactionItem).filter(
+            DailyTransactionItem.transaction_id == tx.id
+        ).delete()
+        for item in body.items:
+            db.add(DailyTransactionItem(transaction_id=tx.id, **item.model_dump()))
+
+        if tx.denominations:
+            for k, v in body.denominations.model_dump().items():
+                setattr(tx.denominations, k, v)
+            tx.denominations.total_amount = denom_total
+        else:
+            db.add(CashDenomination(
+                transaction_id=tx.id,
+                **body.denominations.model_dump(),
+                total_amount=denom_total,
+            ))
+
+        log_activity(db, current_user.id, "daily-report-update", {
+            "report_id": tx.id,
+            "report_date": str(body.report_date),
+            "total_sales": total_sales,
+        })
+    else:
+        # ── CREATE path ──────────────────────────────────────────────────────
+        tx = DailyTransaction(
+            user_id=current_user.id,
+            report_date=body.report_date,
+            client_name=body.client_name,
+            total_sales=total_sales,
+            cash_collection=body.cash_collection,
+            checks_collection=body.checks_collection,
+            credit_sales=body.credit_sales,
+            expenses=body.expenses,
+            balance=body.balance,
+            status=body.status,
+            notes=body.notes,
+        )
+        db.add(tx)
+        db.flush()
+
+        for item in body.items:
+            db.add(DailyTransactionItem(transaction_id=tx.id, **item.model_dump()))
+
+        db.add(CashDenomination(
+            transaction_id=tx.id,
+            **body.denominations.model_dump(),
+            total_amount=denom_total,
+        ))
+
+        log_activity(db, current_user.id, "daily-report-create", {
+            "report_id": tx.id,
+            "report_date": str(body.report_date),
+            "total_sales": total_sales,
+            "denom_total": denom_total,
+        })
+
+    db.commit()
+    return _enrich_report(_load_report(db, tx.id))
+

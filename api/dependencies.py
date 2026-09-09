@@ -6,10 +6,10 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from api.database import get_db
@@ -21,17 +21,16 @@ JWT_SECRET    = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_DAYS = int(os.getenv("JWT_EXPIRE_DAYS", "7"))
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
 
 # ── Password helpers ───────────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 # ── JWT helpers ────────────────────────────────────────────────────────────────
@@ -80,6 +79,15 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
 def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "super_admin":
         raise HTTPException(status_code=403, detail="Super Admin access required")
+    return current_user
+
+
+def require_transaction_input(current_user: User = Depends(get_current_user)) -> User:
+    """Allow admins/super_admins always; employees only if can_input_transactions."""
+    if current_user.role in ("admin", "super_admin"):
+        return current_user
+    if not current_user.can_input_transactions:
+        raise HTTPException(status_code=403, detail="Transaction input access required")
     return current_user
 
 

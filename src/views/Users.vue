@@ -2,11 +2,13 @@
 import { computed, ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/layouts/AppLayout.vue'
-import { Search, Edit, Trash2, X, Shield, User, Briefcase } from 'lucide-vue-next'
+import { Search, Edit, Trash2, X, Shield, User, Briefcase, ToggleLeft, ToggleRight } from 'lucide-vue-next'
 import type { User as UserType, UserRole } from '@/types'
 import { api } from '@/lib/api'
 
 const authStore = useAuthStore()
+const currentRole = computed(() => authStore.currentUser?.role || 'employee')
+const isSuperAdmin = computed(() => currentRole.value === 'super_admin')
 
 const users = ref<UserType[]>([])
 const isLoading = ref(false)
@@ -45,7 +47,7 @@ onMounted(loadUsers)
 
 function openAddModal() {
   alert(
-    'New users should register themselves on the Sign Up page. As Super Admin, you can then manage their roles here.',
+    'New users should register themselves on the Sign Up page. You can then manage their roles and permissions here.',
   )
 }
 
@@ -79,6 +81,22 @@ async function handleDelete(id: number) {
   await api.delete(`/users/${id}`)
   await loadUsers()
 }
+
+async function togglePermission(user: UserType) {
+  try {
+    const updated = await api.put<UserType>(`/users/${user.id}/permissions`, {
+      can_input_transactions: !user.canInputTransactions,
+    })
+    // Update in local list
+    const idx = users.value.findIndex(u => u.id === user.id)
+    if (idx !== -1) {
+      users.value[idx] = updated
+    }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to update permission'
+    alert(msg)
+  }
+}
 </script>
 
 <template>
@@ -88,17 +106,19 @@ async function handleDelete(id: number) {
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-            User Directory
+            {{ isSuperAdmin ? 'User Directory' : 'Employee Management' }}
           </h2>
           <p class="text-sm text-gray-500 dark:text-gray-400">
-            Manage internal operator accounts, administrator roles, and permissions catalog.
+            {{ isSuperAdmin 
+              ? 'Manage internal operator accounts, administrator roles, and permissions catalog.' 
+              : 'Manage employee permissions and transaction input access.' }}
           </p>
         </div>
         <button
+          v-if="isSuperAdmin"
           @click="openAddModal"
           class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-600/10 transition shrink-0"
         >
-          <Plus :size="16" />
           Provision User
         </button>
       </div>
@@ -133,6 +153,7 @@ async function handleDelete(id: number) {
               <th class="px-6 py-4">Identity Details</th>
               <th class="px-6 py-4">Corporate Email</th>
               <th class="px-6 py-4">Security Role</th>
+              <th class="px-6 py-4 text-center">Transaction Access</th>
               <th class="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -183,9 +204,31 @@ async function handleDelete(id: number) {
                 </span>
               </td>
 
+              <!-- Transaction Access Toggle -->
+              <td class="px-6 py-4 text-center">
+                <template v-if="u.role === 'employee'">
+                  <button
+                    @click="togglePermission(u)"
+                    class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition"
+                    :class="u.canInputTransactions
+                      ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200'"
+                    :title="u.canInputTransactions ? 'Click to revoke input access' : 'Click to grant input access'"
+                  >
+                    <ToggleRight v-if="u.canInputTransactions" :size="18" class="text-emerald-600" />
+                    <ToggleLeft v-else :size="18" class="text-gray-400" />
+                    {{ u.canInputTransactions ? 'Granted' : 'View Only' }}
+                  </button>
+                </template>
+                <span v-else class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                  Full Access
+                </span>
+              </td>
+
               <td class="px-6 py-4 text-right">
                 <div class="flex items-center justify-end gap-2">
                   <button
+                    v-if="isSuperAdmin"
                     @click="openEditModal(u)"
                     class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition text-gray-500 hover:text-emerald-600"
                     title="Edit User Role"
@@ -193,6 +236,7 @@ async function handleDelete(id: number) {
                     <Edit :size="15" />
                   </button>
                   <button
+                    v-if="isSuperAdmin"
                     @click="handleDelete(u.id)"
                     class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition text-gray-500 hover:text-red-500"
                     title="Revoke Access"
@@ -206,8 +250,8 @@ async function handleDelete(id: number) {
         </table>
       </div>
 
-      <!-- MODAL FORM DIALOG -->
-      <div v-if="isModalOpen" class="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <!-- MODAL FORM DIALOG (Super Admin only — role editing) -->
+      <div v-if="isModalOpen && isSuperAdmin" class="fixed inset-0 z-50 flex items-center justify-center px-4">
         <!-- Backdrop -->
         <div @click="isModalOpen = false" class="fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
 
@@ -224,7 +268,7 @@ async function handleDelete(id: number) {
 
           <div>
             <h3 class="text-xl font-bold text-gray-900 dark:text-white">
-              {{ isEditMode ? 'Edit User Credentials' : 'Provision New System User' }}
+              Edit User Credentials
             </h3>
             <p class="text-xs text-gray-400 mt-1">
               Specify role clearance level and associate organization.
@@ -239,7 +283,7 @@ async function handleDelete(id: number) {
               <input
                 v-model="formName"
                 type="text"
-                :disabled="isEditMode"
+                disabled
                 class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 placeholder="Enter full name"
                 required
@@ -253,7 +297,7 @@ async function handleDelete(id: number) {
               <input
                 v-model="formEmail"
                 type="email"
-                :disabled="isEditMode"
+                disabled
                 class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 placeholder="name@company.com"
                 required

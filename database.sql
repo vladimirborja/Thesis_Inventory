@@ -31,6 +31,7 @@ CREATE TABLE users (
     role         VARCHAR(20)         NOT NULL DEFAULT 'employee'
                      CHECK (role IN ('super_admin', 'admin', 'employee')),
     company_name VARCHAR(255),
+    can_input_transactions BOOLEAN NOT NULL DEFAULT FALSE,
     created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -318,5 +319,8 @@ CREATE INDEX IF NOT EXISTS idx_daily_tx_user   ON daily_transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_daily_tx_date   ON daily_transactions(report_date DESC);
 CREATE INDEX IF NOT EXISTS idx_daily_tx_status ON daily_transactions(status);
 CREATE INDEX IF NOT EXISTS idx_daily_items_tx  ON daily_transaction_items(transaction_id);
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS can_input_transactions BOOLEAN NOT NULL DEFAULT FALSE;
 -- END INCREMENTAL
 -- =============================================================================

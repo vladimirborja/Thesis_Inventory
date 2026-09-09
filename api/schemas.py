@@ -62,6 +62,7 @@ class UserResponse(CamelModel):
     email: str
     role: str
     company_name: Optional[str] = None
+    can_input_transactions: bool = False
     created_at: Optional[datetime] = None
 
 
@@ -288,6 +289,10 @@ class UserUpdateRole(BaseModel):
         if v not in allowed:
             raise ValueError(f"Role must be one of {allowed}")
         return v
+
+
+class TogglePermissionRequest(BaseModel):
+    can_input_transactions: bool
 
 
 # ── Activity Logs ──────────────────────────────────────────────────────────────

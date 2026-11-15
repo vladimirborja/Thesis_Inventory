@@ -322,5 +322,8 @@ CREATE INDEX IF NOT EXISTS idx_daily_items_tx  ON daily_transaction_items(transa
 
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS can_input_transactions BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 -- END INCREMENTAL
 -- =============================================================================

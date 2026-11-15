@@ -53,6 +53,7 @@ export const useAuthStore = defineStore('auth', () => {
         email: string,
         password: string,
         role: string,
+        companyName = 'Duque Food Products',
     ): Promise<void> {
         isLoading.value = true;
         error.value = null;
@@ -63,6 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
                 email,
                 password,
                 role,
+                company_name: companyName.trim() || 'Duque Food Products',
             });
             // No setToken — user must log in manually
         } catch (e: unknown) {
@@ -71,6 +73,24 @@ export const useAuthStore = defineStore('auth', () => {
         } finally {
             isLoading.value = false;
         }
+    }
+
+    // ── Profile ────────────────────────────────────────────────────────────────
+    async function updateProfile(payload: { name?: string; companyName?: string }): Promise<User> {
+        const body: Record<string, string | undefined> = {};
+        if (payload.name !== undefined) body.name = payload.name;
+        if (payload.companyName !== undefined) body.company_name = payload.companyName;
+        const user = await api.patch<User>('/auth/me', body);
+        currentUser.value = user;
+        return user;
+    }
+
+    async function uploadAvatar(file: File): Promise<User> {
+        const form = new FormData();
+        form.append('file', file);
+        const user = await api.upload<User>('/auth/me/avatar', form);
+        currentUser.value = user;
+        return user;
     }
 
     // ── Logout ─────────────────────────────────────────────────────────────────
@@ -87,6 +107,8 @@ export const useAuthStore = defineStore('auth', () => {
         initSession,
         login,
         register,
+        updateProfile,
+        uploadAvatar,
         logout,
     };
 });

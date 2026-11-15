@@ -38,6 +38,9 @@ __screenshots__/
 # Vite
 *.timestamp-*-*.mjs
 
+# Local avatar uploads (Cloudinary fallback)
+/uploads/
+
 # Python / Virtual Environment
 venv/
 .venv/

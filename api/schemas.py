@@ -38,14 +38,15 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
+    company_name: Optional[str] = "Duque Food Products"
+    # Public self-registration is employee-only (admins are created by super_admin).
     role: str = "employee"
 
     @field_validator("role")
     @classmethod
     def validate_role(cls, v: str) -> str:
-        allowed = {"super_admin", "admin", "employee"}
-        if v not in allowed:
-            raise ValueError(f"Role must be one of {allowed}")
+        if v != "employee":
+            raise ValueError("Self-registration is limited to employee accounts. Contact an admin for elevated roles.")
         return v
 
     @field_validator("password")
@@ -55,6 +56,12 @@ class RegisterRequest(BaseModel):
             raise ValueError("Password must be at least 8 characters")
         return v
 
+    @field_validator("company_name")
+    @classmethod
+    def validate_company_name(cls, v: Optional[str]) -> str:
+        name = (v or "").strip() or "Duque Food Products"
+        return name
+
 
 class UserResponse(CamelModel):
     id: int
@@ -62,8 +69,14 @@ class UserResponse(CamelModel):
     email: str
     role: str
     company_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     can_input_transactions: bool = False
     created_at: Optional[datetime] = None
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    company_name: Optional[str] = None
 
 
 class LoginResponse(BaseModel):
@@ -497,6 +510,31 @@ class DailyReportAggregateRow(CamelModel):
     cash_collection: float
     expenses: float
     balance: float
+
+
+class ComplianceDayStatus(CamelModel):
+    date: date
+    status: str  # submitted | draft | missing
+    report_id: Optional[int] = None
+    user_id: Optional[int] = None
+    user_name: Optional[str] = None
+    total_sales: Optional[float] = None
+    submitted_at: Optional[datetime] = None
+
+
+class ComplianceSummary(CamelModel):
+    date_from: date
+    date_to: date
+    expected_days: int
+    submitted_days: int
+    draft_days: int
+    missing_days: int
+    missing_rate_percent: float
+    submission_rate_percent: float
+    today_status: str
+    days: List[ComplianceDayStatus] = []
+    # Admin: users missing today's report
+    missing_today: List[ComplianceDayStatus] = []
 
 
 # ── Generic paginated wrapper ──────────────────────────────────────────────────

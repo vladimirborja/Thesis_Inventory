@@ -4,19 +4,46 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
   User,
-  LogIn,
   LayoutDashboard,
   Compass,
   CheckCircle2,
   ShieldAlert,
-  Award,
-  Package2,
+  Eye,
+  Target,
+  Flame,
+  HeartHandshake,
+  Lightbulb,
+  Handshake,
 } from 'lucide-vue-next'
+import { LightWaves } from '@/components/ui/light-waves'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 const isLoggedIn = computed(() => !!authStore.currentUser)
+
+const companyValues = [
+  {
+    title: 'Hard Work and Excellence',
+    icon: Flame,
+    body: 'We are driven by passion and genuine interest in everything we do, embracing the mindset of “bawal ang walang ginagawa”. We work both hard and smart to ensure productivity and are committed to delivering excellent quality in all our tasks.',
+  },
+  {
+    title: 'Honesty, Integrity, and Loyalty',
+    icon: HeartHandshake,
+    body: 'We value transparency within the company. We openly and honestly communicate work-related issues with the appropriate peers or management. We uphold accountability, integrity, and loyalty to the company at all times.',
+  },
+  {
+    title: 'Passion for Innovation',
+    icon: Lightbulb,
+    body: 'We believe in the entrepreneurial spirit that built the foundation of our company. We encourage every passionate and responsible team member to initiate, collaborate, and cooperate to turn innovative ideas into meaningful outcomes.',
+  },
+  {
+    title: 'Respect',
+    icon: Handshake,
+    body: 'We uphold respect for our fellow workers, management, shareholders, and all stakeholders we interact with. We deal with everyone with fairness, compassion, and professionalism.',
+  },
+]
 
 function handleProfileClick() {
   if (isLoggedIn.value) {
@@ -28,267 +55,331 @@ function handleProfileClick() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col">
-    <!-- Header -->
-    <header
-      class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex items-center justify-between"
-    >
-      <div class="flex items-center gap-3">
-        <div
-          class="h-10 w-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-emerald-600/20"
-        >
-          <Package2 :size="22" />
-        </div>
-        <div>
-          <h1 class="text-lg font-bold tracking-tight text-gray-900">Duque Food Products</h1>
-          <p class="text-[10px] text-emerald-600 font-semibold tracking-wider uppercase">
-            IMS Company Portal
-          </p>
-        </div>
-      </div>
+  <div class="landing-page relative flex min-h-screen flex-col overflow-x-hidden font-sans text-gray-900">
+    <!-- Full-page Light Waves background -->
+    <LightWaves
+      class="pointer-events-none fixed inset-0 -z-10 min-h-screen bg-white"
+      :colors="['#D42D2A', '#F39C12', '#1B7C3D', '#FFFFFF']"
+      placement="bottom"
+      :amplitude="1"
+      :angle="0"
+      :depth="0.7"
+      :fill="0.15"
+      :height="0.55"
+      :layers="6"
+    />
 
-      <!-- Profile/Login Action -->
-      <div class="flex items-center gap-3">
-        <template v-if="isLoggedIn">
-          <button
-            @click="handleProfileClick"
-            class="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 rounded-xl text-sm font-semibold transition-all"
-          >
-            <LayoutDashboard :size="16" />
-            <span>Go to Dashboard</span>
-          </button>
-          <!-- Small profile circle with initials -->
-          <div
-            class="h-9 w-9 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center font-bold text-sm text-emerald-700 dark:text-emerald-300 uppercase"
-          >
-            {{ authStore.currentUser?.name.charAt(0) }}
+    <!-- Header -->
+    <header class="liquid-glass liquid-glass--light sticky top-0 z-50 mx-4 mt-4 rounded-2xl px-5 py-3 sm:mx-6">
+      <div class="mx-auto flex max-w-6xl items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <img
+            src="/images/brand/logo.jpg"
+            alt="Duque Food Products logo"
+            class="h-10 w-10 rounded-full object-cover shadow-md"
+          />
+          <div>
+            <h1 class="text-lg font-bold tracking-tight text-gray-900">Duque Food Products</h1>
+            <p class="text-[10px] font-semibold tracking-wider text-[var(--brand-green)] uppercase">
+              DIMS Company Portal
+            </p>
           </div>
-        </template>
-        <template v-else>
-          <button
-            @click="handleProfileClick"
-            class="flex items-center justify-center h-10 w-10 rounded-full border border-gray-250 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all dark:border-gray-850 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-            title="Profile / Sign In"
-          >
-            <User :size="20" />
-          </button>
-        </template>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <template v-if="isLoggedIn">
+            <button
+              @click="handleProfileClick"
+              class="flex items-center gap-2 rounded-xl bg-[var(--brand-green)]/10 px-4 py-2 text-sm font-semibold text-[var(--brand-green-deep)] transition hover:bg-[var(--brand-green)]/15"
+            >
+              <LayoutDashboard :size="16" />
+              <span>Go to Dashboard</span>
+            </button>
+            <div
+              class="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-green)]/15 text-sm font-bold uppercase text-[var(--brand-green-deep)]"
+            >
+              {{ authStore.currentUser?.name.charAt(0) }}
+            </div>
+          </template>
+          <template v-else>
+            <button
+              @click="handleProfileClick"
+              class="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-white/50 hover:text-gray-900"
+              title="Profile / Sign In"
+            >
+              <User :size="20" />
+            </button>
+          </template>
+        </div>
       </div>
     </header>
 
     <!-- Hero Section -->
-    <section
-      class="max-w-6xl mx-auto px-6 py-20 flex flex-col md:flex-row items-center gap-12 flex-1"
-    >
-      <div class="flex-1 space-y-6">
-        <div
-          class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold"
-        >
-          <Award :size="14" />
-          Vision 2030: Quality, Safety & Precision
-        </div>
-        <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight text-gray-900 leading-tight">
-          Duque Food <span class="text-emerald-600">Products</span>.
+    <section class="relative mx-auto flex w-full max-w-3xl flex-1 flex-col items-center px-6 py-20 md:py-28">
+      <div class="flex w-full flex-col items-center space-y-7 text-center">
+        <h2 class="text-4xl font-extrabold leading-[1.05] tracking-tight text-gray-900 md:text-5xl lg:text-[3.4rem]">
+          Duque Food
+          <span class="text-[var(--brand-green)]">Products</span>.
         </h2>
-        <p class="text-gray-600 leading-relaxed text-lg max-w-lg">
-          Duque Food Products integrates state-of-the-art storage, supply chain tracking, and
-          quality control systems to deliver fresh, safe, and nutritious goods from raw ingredients
-          to table.
-        </p>
-        <div class="flex items-center gap-4 pt-4">
+
+        <div class="mx-auto max-w-2xl space-y-4">
+          <p class="text-xl font-medium leading-snug tracking-tight text-gray-800 md:text-2xl">
+            From raw ingredients to every Filipino table — tracked, safe, and ready.
+          </p>
+          <p class="mx-auto max-w-xl text-[15px] leading-relaxed text-gray-600 md:text-base">
+            We combine modern storage, supply-chain visibility, and quality control so households
+            and food businesses get fresh, nutritious products they can trust.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-center gap-3 pt-1">
           <button
             @click="handleProfileClick"
-            class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl transition shadow-lg shadow-emerald-600/10"
+            class="rounded-2xl bg-[var(--brand-green)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[var(--brand-green)]/25 transition hover:bg-[var(--brand-green-deep)]"
           >
             Access Inventory Portal
           </button>
           <button
             type="button"
-            class="px-6 py-3 border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-xl transition"
+            class="liquid-glass liquid-glass--light rounded-2xl px-6 py-3 text-sm font-semibold text-gray-800 transition hover:brightness-105"
             @click="router.push({ name: 'company' })"
           >
             Company Information
           </button>
         </div>
       </div>
-
-      <!-- Visual Asset -->
-      <div class="flex-1 w-full max-w-md md:max-w-none">
-        <div
-          class="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-emerald-900 aspect-4/3 flex items-center justify-center p-8"
-        >
-          <!-- Clean SVG Illustration of food processing elements -->
-          <svg
-            viewBox="0 0 400 300"
-            class="w-full h-full text-emerald-100"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <!-- Conveyor belt -->
-            <path d="M50 200 H350" stroke="currentColor" stroke-width="8" stroke-linecap="round" />
-            <circle cx="70" cy="200" r="10" fill="currentColor" />
-            <circle cx="150" cy="200" r="10" fill="currentColor" />
-            <circle cx="230" cy="200" r="10" fill="currentColor" />
-            <circle cx="310" cy="200" r="10" fill="currentColor" />
-            <!-- Packaging Boxes on conveyor belt -->
-            <rect
-              x="90"
-              y="140"
-              width="40"
-              height="40"
-              rx="4"
-              fill="white"
-              stroke="currentColor"
-              stroke-width="4"
-            />
-            <rect
-              x="250"
-              y="140"
-              width="40"
-              height="40"
-              rx="4"
-              fill="white"
-              stroke="currentColor"
-              stroke-width="4"
-            />
-            <!-- Processing tank -->
-            <rect
-              x="150"
-              y="40"
-              width="100"
-              height="80"
-              rx="12"
-              fill="currentColor"
-              opacity="0.2"
-            />
-            <rect
-              x="150"
-              y="40"
-              width="100"
-              height="80"
-              rx="12"
-              stroke="currentColor"
-              stroke-width="4"
-            />
-            <path d="M200 120 V200" stroke="currentColor" stroke-width="4" />
-            <!-- Control panel -->
-            <rect
-              x="30"
-              y="60"
-              width="60"
-              height="80"
-              rx="6"
-              stroke="currentColor"
-              stroke-width="4"
-              fill="currentColor"
-              opacity="0.1"
-            />
-            <circle cx="50" cy="80" r="6" fill="#10B981" />
-            <circle cx="70" cy="80" r="6" fill="#EF4444" />
-            <rect x="45" y="100" width="30" height="6" rx="2" fill="currentColor" />
-            <rect x="45" y="115" width="20" height="6" rx="2" fill="currentColor" />
-            <!-- Decorative grains/leaves -->
-            <path
-              d="M330 80 C340 70 350 80 360 70"
-              stroke="currentColor"
-              stroke-width="3"
-              stroke-linecap="round"
-            />
-            <path
-              d="M330 90 C340 80 350 90 360 80"
-              stroke="currentColor"
-              stroke-width="3"
-              stroke-linecap="round"
-            />
-          </svg>
-          <div
-            class="absolute bottom-4 left-4 right-4 bg-white/10 backdrop-blur-md rounded-2xl p-4 text-white text-xs border border-white/10"
-          >
-            <p class="font-bold">Automated Supply & Quality Metrics</p>
-            <p class="opacity-80 mt-1">
-              Real-time telemetry and raw food ingredient storage safety logs active.
-            </p>
-          </div>
-        </div>
-      </div>
     </section>
 
     <!-- Vision and Values Section -->
-    <section id="vision" class="bg-white py-20 px-6 border-t border-gray-100">
-      <div class="max-w-6xl mx-auto">
-        <div class="text-center max-w-xl mx-auto space-y-4 mb-16">
-          <h3 class="text-3xl font-bold tracking-tight">Our Pillars of Excellence</h3>
-          <p class="text-gray-500">
-            We build high-capacity food processing technology guided by strict global food handling
-            compliance benchmarks.
+    <section id="vision" class="relative px-6 py-20">
+      <div class="mx-auto max-w-6xl">
+        <div class="mx-auto mb-14 max-w-2xl space-y-3 text-center">
+          <h3 class="text-3xl font-bold tracking-tight text-gray-900">Our Pillars of Excellence</h3>
+          <p class="text-[15px] leading-relaxed text-gray-600 md:text-base">
+            Guided by safety, responsible sourcing, and less waste — so every product leaving our
+            plant meets the standard Filipino families deserve.
           </p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <!-- Card 1 -->
-          <div
-            class="p-8 rounded-2xl bg-gray-50 hover:bg-emerald-50/50 hover:border-emerald-200/50 border border-transparent transition-all group"
-          >
+        <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div class="liquid-glass liquid-glass--light group rounded-3xl p-8 transition hover:brightness-[1.03]">
             <div
-              class="h-12 w-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-6 group-hover:scale-110 transition"
+              class="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand-green)]/12 text-[var(--brand-green)] transition group-hover:scale-110"
             >
               <CheckCircle2 :size="24" />
             </div>
-            <h4 class="text-lg font-bold mb-2">Uncompromised Safety</h4>
-            <p class="text-gray-600 text-sm leading-relaxed">
-              Continuous hygiene telemetry and automated lot tracking ensure zero-contaminant
-              production lines and absolute compliance with ISO food handling norms.
+            <h4 class="mb-2 text-lg font-bold text-gray-900">Uncompromised Safety</h4>
+            <p class="text-sm leading-relaxed text-gray-600">
+              Continuous hygiene telemetry and automated lot tracking keep production lines clean
+              and compliant with food-handling standards.
             </p>
           </div>
 
-          <!-- Card 2 -->
-          <div
-            class="p-8 rounded-2xl bg-gray-50 hover:bg-emerald-50/50 hover:border-emerald-200/50 border border-transparent transition-all group"
-          >
+          <div class="liquid-glass liquid-glass--light group rounded-3xl p-8 transition hover:brightness-[1.03]">
             <div
-              class="h-12 w-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-6 group-hover:scale-110 transition"
+              class="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand-green)]/12 text-[var(--brand-green)] transition group-hover:scale-110"
             >
               <Compass :size="24" />
             </div>
-            <h4 class="text-lg font-bold mb-2">Sustainable Sourcing</h4>
-            <p class="text-gray-600 text-sm leading-relaxed">
-              Direct partnerships with certified eco-farms ensure fresh grains, raw starches, and
-              organic spices enter our production chain with full provenance logs.
+            <h4 class="mb-2 text-lg font-bold text-gray-900">Sustainable Sourcing</h4>
+            <p class="text-sm leading-relaxed text-gray-600">
+              Direct partnerships with trusted farms bring fresh ingredients into our chain with
+              clear provenance from source to plant.
             </p>
           </div>
 
-          <!-- Card 3 -->
-          <div
-            class="p-8 rounded-2xl bg-gray-50 hover:bg-emerald-50/50 hover:border-emerald-200/50 border border-transparent transition-all group"
-          >
+          <div class="liquid-glass liquid-glass--light group rounded-3xl p-8 transition hover:brightness-[1.03]">
             <div
-              class="h-12 w-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-6 group-hover:scale-110 transition"
+              class="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand-green)]/12 text-[var(--brand-green)] transition group-hover:scale-110"
             >
               <ShieldAlert :size="24" />
             </div>
-            <h4 class="text-lg font-bold mb-2">Zero Waste Philosophy</h4>
-            <p class="text-gray-600 text-sm leading-relaxed">
-              By deploying advanced product shelf-life modeling and smart multi-warehouse stocks
-              distribution, we achieve near-zero organic waste quotients.
+            <h4 class="mb-2 text-lg font-bold text-gray-900">Zero Waste Philosophy</h4>
+            <p class="text-sm leading-relaxed text-gray-600">
+              Smarter shelf-life planning and multi-warehouse stock control help us cut waste while
+              keeping shelves reliably stocked.
             </p>
+          </div>
+        </div>
+
+        <!-- Vision & Mission -->
+        <div class="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <article class="liquid-glass liquid-glass--light rounded-3xl p-8 md:p-10">
+            <div
+              class="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--brand-green)] text-white"
+            >
+              <Eye :size="22" />
+            </div>
+            <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--brand-green)]">
+              Our Vision
+            </p>
+            <p class="mt-3 text-base leading-relaxed text-gray-700 md:text-lg">
+              To be the leading provider of trusted and innovative processed food products that
+              bring joy, nourishment, and real goodness to every household.
+            </p>
+          </article>
+
+          <article class="liquid-glass liquid-glass--light rounded-3xl p-8 md:p-10">
+            <div
+              class="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--brand-red)] text-white"
+            >
+              <Target :size="22" />
+            </div>
+            <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--brand-red)]">
+              Our Mission
+            </p>
+            <p class="mt-3 text-base leading-relaxed text-gray-700 md:text-lg">
+              To create high-quality, safe, and delicious food products through innovation and
+              excellence, while fostering a culture of integrity, respect, and teamwork that
+              benefits our customers, employees, and community.
+            </p>
+          </article>
+        </div>
+
+        <!-- Values -->
+        <div class="mt-16 space-y-8">
+          <div class="space-y-2 text-center">
+            <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F39C12]">
+              Our Values
+            </p>
+            <h4 class="text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">
+              What guides every team member
+            </h4>
+          </div>
+
+          <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <article
+              v-for="value in companyValues"
+              :key="value.title"
+              class="liquid-glass liquid-glass--light rounded-2xl p-6 transition hover:brightness-[1.03] md:p-7"
+            >
+              <div class="mb-4 flex items-start gap-3">
+                <div
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--brand-gold)]/15 text-[var(--brand-gold)]"
+                >
+                  <component :is="value.icon" :size="20" />
+                </div>
+                <h5 class="pt-1.5 text-base font-bold text-gray-900 md:text-lg">
+                  {{ value.title }}
+                </h5>
+              </div>
+              <p class="text-sm leading-relaxed text-gray-600">
+                {{ value.body }}
+              </p>
+            </article>
           </div>
         </div>
       </div>
     </section>
 
     <!-- Footer -->
-    <footer
-      class="bg-gray-900 text-gray-400 py-12 px-6 border-t border-gray-800 text-center text-sm"
-    >
-      <div class="max-w-6xl mx-auto space-y-4">
-        <div class="flex items-center justify-center gap-2 text-white font-semibold">
-          <div class="h-6 w-6 bg-emerald-600 rounded flex items-center justify-center text-xs">
-            <Package2 :size="14" />
-          </div>
-          Duque Food Products - IMS Company Portal
+    <footer class="relative px-6 pb-10 pt-4 text-center text-sm text-gray-500">
+      <div class="liquid-glass liquid-glass--light mx-auto max-w-6xl space-y-4 rounded-3xl px-6 py-8">
+        <div class="flex items-center justify-center gap-2 font-semibold text-gray-800">
+          <img src="/images/brand/logo.jpg" alt="" class="h-6 w-6 rounded-full object-cover" />
+          Duque Food Products - DIMS Company Portal
         </div>
         <p>© {{ new Date().getFullYear() }} Built by Justine Ryan Juco. All rights reserved.</p>
       </div>
     </footer>
   </div>
 </template>
+
+<style scoped>
+.liquid-glass {
+  position: relative;
+  isolation: isolate;
+  background: color-mix(in srgb, var(--brand-green-deep) 72%, #04110a);
+  border: 1px solid transparent;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 -12px 28px rgba(0, 0, 0, 0.22) inset,
+    0 18px 48px rgba(0, 48, 28, 0.18),
+    0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .liquid-glass {
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.2) 0%,
+      rgba(16, 128, 64, 0.32) 40%,
+      rgba(8, 40, 24, 0.58) 100%
+    );
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(28px) saturate(180%);
+  }
+
+  .liquid-glass--light {
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.72) 0%,
+      rgba(255, 255, 255, 0.42) 45%,
+      rgba(247, 245, 240, 0.55) 100%
+    );
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    backdrop-filter: blur(22px) saturate(160%);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.85) inset,
+      0 -8px 20px rgba(0, 0, 0, 0.04) inset,
+      0 12px 32px rgba(0, 48, 28, 0.08);
+  }
+}
+
+.liquid-glass--light {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 12px 32px rgba(0, 48, 28, 0.08);
+}
+
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    125deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.1) 22%,
+    transparent 45%,
+    transparent 60%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  opacity: 0.8;
+  mix-blend-mode: soft-light;
+}
+
+.liquid-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  padding: 1.25px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.35) 20%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(240, 144, 32, 0.28) 72%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+.liquid-glass > * {
+  position: relative;
+  z-index: 3;
+}
+</style>

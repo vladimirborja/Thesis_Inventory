@@ -16,6 +16,7 @@ const router = createRouter({
         { path: '/suppliers',   name: 'suppliers',    component: () => import('@/views/Suppliers.vue'),    meta: { requiresAuth: true } },
         { path: '/transactions',   name: 'transactions',   component: () => import('@/views/Transactions.vue'),  meta: { requiresAuth: true } },
         { path: '/users',       name: 'users',        component: () => import('@/views/Users.vue'),        meta: { requiresAuth: true, roles: ['admin', 'super_admin'] } },
+        { path: '/profile',     name: 'profile',      component: () => import('@/views/Profile.vue'),      meta: { requiresAuth: true } },
         // 404 — must be last
         { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue') },
     ],

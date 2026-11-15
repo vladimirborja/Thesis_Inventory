@@ -158,11 +158,79 @@
     }
 }
 
-@layer components {
-    .admin-card {
-        @apply rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900;
-    }
+/* Liquid-glass panels — plain CSS (Tailwind v4 cannot @apply custom classes) */
+.ims-glass,
+.admin-card,
+.admin-table-wrap {
+    position: relative;
+    isolation: isolate;
+    border-radius: 1rem;
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    background:
+        linear-gradient(
+            145deg,
+            rgba(248, 252, 250, 0.78) 0%,
+            rgba(232, 242, 236, 0.62) 45%,
+            rgba(209, 230, 218, 0.5) 100%
+        );
+    backdrop-filter: blur(18px) saturate(1.35);
+    -webkit-backdrop-filter: blur(18px) saturate(1.35);
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.65) inset,
+        0 10px 28px -12px rgba(15, 61, 46, 0.18);
+}
 
+.dark .ims-glass,
+.dark .admin-card,
+.dark .admin-table-wrap {
+    border-color: rgba(255, 255, 255, 0.1);
+    background:
+        linear-gradient(
+            145deg,
+            rgba(17, 24, 39, 0.78) 0%,
+            rgba(17, 24, 39, 0.55) 50%,
+            rgba(6, 78, 59, 0.28) 100%
+        );
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.06) inset,
+        0 12px 32px -14px rgba(0, 0, 0, 0.55);
+}
+
+.ims-glass::before,
+.admin-card::before,
+.admin-table-wrap::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(
+        125deg,
+        rgba(255, 255, 255, 0.45) 0%,
+        transparent 42%,
+        transparent 100%
+    );
+    opacity: 0.7;
+}
+
+.dark .ims-glass::before,
+.dark .admin-card::before,
+.dark .admin-table-wrap::before {
+    background: linear-gradient(
+        125deg,
+        rgba(52, 211, 153, 0.12) 0%,
+        transparent 45%,
+        transparent 100%
+    );
+    opacity: 0.9;
+}
+
+.admin-table-wrap {
+    overflow: hidden;
+}
+
+@layer components {
     .admin-panel-title {
         @apply text-lg font-bold text-gray-800 dark:text-gray-100;
     }
@@ -172,22 +240,27 @@
     }
 
     .admin-input {
-        @apply border-gray-200 bg-white text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100;
-    }
-
-    .admin-table-wrap {
-        @apply overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900;
+        @apply border-gray-200/80 bg-white/60 text-gray-900 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-950/50 dark:text-gray-100;
     }
 
     .admin-table-head {
-        @apply bg-gray-50 text-left text-xs text-gray-500 uppercase dark:bg-gray-800/80 dark:text-gray-400;
+        @apply bg-white/40 text-left text-xs text-gray-500 uppercase dark:bg-gray-950/40 dark:text-gray-400;
     }
 
     .admin-table-row {
-        @apply border-t border-gray-100 dark:border-gray-800;
+        @apply border-t border-emerald-900/10 dark:border-gray-800;
     }
 
     .admin-filter-inactive {
-        @apply bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300;
+        @apply bg-gray-100/80 text-gray-600 dark:bg-gray-800 dark:text-gray-300;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ims-glass,
+    .admin-card,
+    .admin-table-wrap {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 }

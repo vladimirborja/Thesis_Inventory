@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
+import ForecastChatbot from '@/components/ForecastChatbot.vue';
 import {
     LineChart, BarChart3, AlertTriangle, Package, Layers,
     Search, RefreshCw,
@@ -119,6 +120,10 @@ function abcBadge(cls: string) {
     if (cls === 'B') return 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400';
     return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
 }
+
+function onChatSelectProduct(productId: number) {
+    selectedProductId.value = productId;
+}
 </script>
 
 <template>
@@ -156,24 +161,31 @@ function abcBadge(cls: string) {
                 </div>
             </div>
 
+            <!-- Demand forecast chatbot -->
+            <ForecastChatbot
+                :products="products"
+                :lead-time-days="leadTimeDays"
+                @select-product="onChatSelectProduct"
+            />
+
             <!-- KPI strip -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div class="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                <div class="p-4 rounded-2xl ims-glass">
                     <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Products below ROP</p>
                     <p class="text-2xl font-extrabold mt-1 text-amber-500">{{ overview?.productsBelowRop ?? '—' }}</p>
                 </div>
-                <div class="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                <div class="p-4 rounded-2xl ims-glass">
                     <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Ingredients below ROP</p>
                     <p class="text-2xl font-extrabold mt-1 text-amber-500">{{ overview?.ingredientsBelowRop ?? '—' }}</p>
                 </div>
-                <div class="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                <div class="p-4 rounded-2xl ims-glass">
                     <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Class A SKUs</p>
                     <p class="text-2xl font-extrabold mt-1 text-emerald-600">{{ overview?.classACount ?? '—' }}</p>
                     <p class="text-[10px] text-gray-400 mt-0.5">
                         B {{ overview?.classBCount ?? 0 }} · C {{ overview?.classCCount ?? 0 }}
                     </p>
                 </div>
-                <div class="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                <div class="p-4 rounded-2xl ims-glass">
                     <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Forecast MAPE</p>
                     <p class="text-2xl font-extrabold mt-1">
                         {{ overview?.avgMapePercent != null ? `${overview.avgMapePercent}%` : 'N/A' }}
@@ -183,7 +195,7 @@ function abcBadge(cls: string) {
             </div>
 
             <!-- Demand forecast -->
-            <div class="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+            <div class="p-5 rounded-2xl ims-glass">
                 <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
                     <div>
                         <h3 class="font-bold text-base flex items-center gap-2">
@@ -261,7 +273,7 @@ function abcBadge(cls: string) {
 
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <!-- ABC -->
-                <div class="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                <div class="p-5 rounded-2xl ims-glass">
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                         <h3 class="font-bold text-base flex items-center gap-2">
                             <BarChart3 :size="16" class="text-emerald-600" />
@@ -322,7 +334,7 @@ function abcBadge(cls: string) {
                 </div>
 
                 <!-- ROP -->
-                <div class="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                <div class="p-5 rounded-2xl ims-glass">
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                         <h3 class="font-bold text-base flex items-center gap-2">
                             <AlertTriangle :size="16" class="text-amber-500" />

@@ -8,6 +8,7 @@ export interface User {
     email: string;
     role: UserRole;
     companyName?: string;
+    avatarUrl?: string | null;
     canInputTransactions?: boolean;
     createdAt?: string;
 }
@@ -224,4 +225,29 @@ export interface AnalyticsOverview {
     classCCount: number;
     avgMapePercent?: number | null;
     leadTimeDaysDefault: number;
+}
+
+/** DIMS daily-report compliance (GET /api/daily-reports/compliance) */
+export interface ComplianceDayStatus {
+    date: string;
+    status: 'submitted' | 'draft' | 'missing' | string;
+    reportId?: number | null;
+    userId?: number | null;
+    userName?: string | null;
+    totalSales?: number | null;
+    submittedAt?: string | null;
+}
+
+export interface ComplianceSummary {
+    dateFrom: string;
+    dateTo: string;
+    expectedDays: number;
+    submittedDays: number;
+    draftDays: number;
+    missingDays: number;
+    missingRatePercent: number;
+    submissionRatePercent: number;
+    todayStatus: 'submitted' | 'draft' | 'missing' | string;
+    days: ComplianceDayStatus[];
+    missingToday: ComplianceDayStatus[];
 }

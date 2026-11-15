@@ -6,11 +6,12 @@ import {
     Users, ShieldAlert, BarChart3, Clock, AlertTriangle, PackageCheck, Truck,
     Plus, ArrowUpRight, ArrowDownRight, RefreshCw, Layers, ShoppingCart,
     TrendingUp, ChevronRight, CalendarDays, FileDown, FileSpreadsheet,
+    ClipboardList,
 } from 'lucide-vue-next';
 import { formatCurrency } from '@/composables/useFormatCurrency';
 import type {
     Product, StockTransaction, User as UserType, Warehouse,
-    DashboardSummary, MonthlySalesItem,
+    DashboardSummary, MonthlySalesItem, ComplianceSummary,
 } from '@/types';
 import { api } from '@/lib/api';
 import jsPDF from 'jspdf';
@@ -22,6 +23,7 @@ const authStore = useAuthStore();
 const currentRole = computed(() => authStore.currentUser?.role || 'employee');
 const userName    = computed(() => authStore.currentUser?.name || 'User');
 const canInput    = computed(() => authStore.currentUser?.canInputTransactions ?? false);
+const isAdminRole = computed(() => currentRole.value === 'admin' || currentRole.value === 'super_admin');
 
 const products     = ref<Product[]>([]);
 const transactions = ref<StockTransaction[]>([]);
@@ -32,6 +34,7 @@ const isLoading    = ref(false);
 const summary = ref<DashboardSummary>({ totalUsers: 0, totalBuy: 0, totalSell: 0 });
 const monthlySales = ref<MonthlySalesItem[]>([]);
 const salesRange = ref<6 | 12>(6);
+const compliance = ref<ComplianceSummary | null>(null);
 
 const visibleMonthlySales = computed(() =>
     monthlySales.value.slice(-salesRange.value),
@@ -41,21 +44,42 @@ const maxMonthlyTotal = computed(() =>
     Math.max(1, ...visibleMonthlySales.value.map((m) => m.total)),
 );
 
-// ── Calendar (mini current-month view) ───────────────────────────────────────
+const needsDailyReport = computed(() => {
+    if (!canInput.value && !isAdminRole.value) return false;
+    if (isAdminRole.value) return false; // admins see missing_today list instead
+    return compliance.value?.todayStatus !== 'submitted';
+});
+
+// ── Calendar (wired to daily-report compliance) ──────────────────────────────
 const calendarNow = new Date();
 const calendarYear = calendarNow.getFullYear();
 const calendarMonth = calendarNow.getMonth();
 const calendarMonthLabel = calendarNow.toLocaleString('en-PH', { month: 'short', year: 'numeric' });
 const calendarWeekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+const complianceByDay = computed(() => {
+    const map = new Map<number, string>();
+    for (const d of compliance.value?.days ?? []) {
+        const dt = new Date(d.date + 'T00:00:00');
+        if (dt.getFullYear() === calendarYear && dt.getMonth() === calendarMonth) {
+            map.set(dt.getDate(), d.status);
+        }
+    }
+    return map;
+});
+
 const calendarCells = computed(() => {
     const firstWeekday = new Date(calendarYear, calendarMonth, 1).getDay();
     const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
     const today = calendarNow.getDate();
-    const cells: Array<{ day: number | null; isToday: boolean }> = [];
-    for (let i = 0; i < firstWeekday; i++) cells.push({ day: null, isToday: false });
+    const cells: Array<{ day: number | null; isToday: boolean; status: string | null }> = [];
+    for (let i = 0; i < firstWeekday; i++) cells.push({ day: null, isToday: false, status: null });
     for (let d = 1; d <= daysInMonth; d++) {
-        cells.push({ day: d, isToday: d === today });
+        cells.push({
+            day: d,
+            isToday: d === today,
+            status: complianceByDay.value.get(d) ?? null,
+        });
     }
     return cells;
 });
@@ -111,9 +135,13 @@ function exportExcel() {
 async function loadDashboardData() {
     isLoading.value = true;
     try {
+        const monthStart = new Date(calendarYear, calendarMonth, 1).toISOString().slice(0, 10);
+        const monthEnd = new Date(calendarYear, calendarMonth + 1, 0).toISOString().slice(0, 10);
+
         const fetches: Promise<unknown>[] = [
             api.get<Product[]>('/products'),
             api.get<StockTransaction[]>('/transactions'),
+            api.get<ComplianceSummary>(`/daily-reports/compliance?date_from=${monthStart}&date_to=${monthEnd}`),
         ];
 
         if (currentRole.value === 'super_admin') {
@@ -126,11 +154,12 @@ async function loadDashboardData() {
         const results = await Promise.all(fetches);
         products.value = results[0] as Product[];
         transactions.value = results[1] as StockTransaction[];
+        compliance.value = results[2] as ComplianceSummary;
         if (currentRole.value === 'super_admin') {
-            users.value = results[2] as UserType[];
-            warehouses.value = results[3] as Warehouse[];
-            summary.value = results[4] as DashboardSummary;
-            monthlySales.value = results[5] as MonthlySalesItem[];
+            users.value = results[3] as UserType[];
+            warehouses.value = results[4] as Warehouse[];
+            summary.value = results[5] as DashboardSummary;
+            monthlySales.value = results[6] as MonthlySalesItem[];
         }
     } catch (err) {
         console.error('Error loading dashboard data:', err);
@@ -188,9 +217,42 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
     <AppLayout>
         <div class="space-y-6">
             <!-- Greeting -->
-            <div>
-                <h2 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Hello, {{ userName }}</h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Welcome to your role-tailored IMS portal. Action panels loaded.</p>
+            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+                <div>
+                    <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700/80 dark:text-emerald-400">Duque DIMS</p>
+                    <h2 class="text-2xl md:text-[1.75rem] font-bold tracking-tight text-gray-900 dark:text-white mt-1">Hello, {{ userName.split(' ')[0] }}</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">Daily recording with Poka-Yoke totals — then stock visibility when you need it.</p>
+                </div>
+            </div>
+
+            <!-- Admin / operator compliance strip (admins only here — employees get hero below) -->
+            <div
+                v-if="compliance && isAdminRole"
+                class="rounded-2xl border p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                :class="compliance.missingToday.length > 0
+                    ? 'bg-amber-50/90 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/40'
+                    : 'bg-emerald-50/90 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/40'"
+            >
+                <div class="space-y-1">
+                    <p class="text-[10px] font-bold uppercase tracking-wider"
+                        :class="compliance.missingToday.length > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'">
+                        Plant compliance · today
+                    </p>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                        <span v-if="compliance.missingToday.length === 0">All assigned operators submitted today.</span>
+                        <span v-else>{{ compliance.missingToday.length }} operator(s) still open — {{ compliance.submissionRatePercent }}% submitted this month.</span>
+                    </p>
+                    <p class="text-[11px] text-gray-500">
+                        Missing rate {{ compliance.missingRatePercent }}% · {{ compliance.submittedDays }}/{{ compliance.expectedDays }} filed
+                    </p>
+                </div>
+                <router-link
+                    to="/transactions"
+                    class="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition bg-emerald-700 hover:bg-emerald-800"
+                >
+                    <ClipboardList :size="16" />
+                    Open Daily Reports
+                </router-link>
             </div>
 
             <!-- ========================================== -->
@@ -199,7 +261,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
             <div v-if="currentRole === 'super_admin'" class="space-y-6">
                 <!-- 1. Summary: Total Users / Total Buy / Total Sell -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Users</p>
                             <p class="text-2xl font-extrabold mt-2">{{ summary.totalUsers }}</p>
@@ -209,7 +271,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                         </div>
                     </div>
 
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Buy</p>
                             <p class="text-2xl font-extrabold mt-2 text-emerald-600">{{ formatCurrency(summary.totalBuy) }}</p>
@@ -220,7 +282,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                         </div>
                     </div>
 
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Sell</p>
                             <p class="text-2xl font-extrabold mt-2 text-indigo-600">{{ formatCurrency(summary.totalSell) }}</p>
@@ -234,21 +296,21 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
 
                 <!-- Secondary ops metrics -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-5 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Audit logs</p>
                             <p class="text-xl font-extrabold mt-1">{{ transactions.length }}</p>
                         </div>
                         <Clock :size="20" class="text-indigo-500" />
                     </div>
-                    <div class="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-5 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Critical alerts</p>
                             <p class="text-xl font-extrabold mt-1 text-amber-500">{{ lowStockProducts.length + outOfStockProducts.length }}</p>
                         </div>
                         <ShieldAlert :size="20" class="text-amber-500" />
                     </div>
-                    <div class="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-5 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Storage nodes</p>
                             <p class="text-xl font-extrabold mt-1">{{ warehouses.length }}</p>
@@ -260,7 +322,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                 <!-- Sales review + mini calendar (compact side-by-side) -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <!-- Monthly Sales Review -->
-                    <div class="lg:col-span-2 p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div class="lg:col-span-2 p-5 rounded-2xl ims-glass shadow-sm">
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                             <div>
                                 <h3 class="font-bold text-base flex items-center gap-2">
@@ -320,15 +382,15 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                         <p v-if="visibleMonthlySales.length === 0" class="text-center text-xs text-gray-400 py-6">No sales data yet.</p>
                     </div>
 
-                    <!-- Mini calendar -->
-                    <div class="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <!-- Mini calendar — daily report compliance colors -->
+                    <div class="p-4 rounded-2xl ims-glass shadow-sm">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-bold text-sm flex items-center gap-1.5">
                                 <CalendarDays :size="14" class="text-emerald-600" />
                                 {{ calendarMonthLabel }}
                             </h3>
                             <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
-                                Today {{ calendarNow.getDate() }}
+                                Daily filing
                             </span>
                         </div>
                         <div class="grid grid-cols-7 gap-0.5 text-center text-[9px] font-semibold text-gray-400 mb-1">
@@ -341,20 +403,53 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                                 class="h-7 flex items-center justify-center rounded-md text-[11px]"
                                 :class="cell.day === null
                                     ? ''
-                                    : cell.isToday
+                                    : cell.status === 'submitted'
                                         ? 'bg-emerald-600 text-white font-bold'
-                                        : 'text-gray-600 dark:text-gray-300'"
+                                        : cell.status === 'draft'
+                                            ? 'bg-amber-400 text-white font-semibold'
+                                            : cell.status === 'missing'
+                                                ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400 font-semibold'
+                                                : cell.isToday
+                                                    ? 'ring-2 ring-emerald-600 text-gray-800 dark:text-gray-200 font-bold'
+                                                    : 'text-gray-600 dark:text-gray-300'"
+                                :title="cell.status ? `${cell.day}: ${cell.status}` : undefined"
                             >
                                 {{ cell.day ?? '' }}
                             </div>
                         </div>
+                        <div class="mt-3 flex flex-wrap gap-2 text-[9px] text-gray-500">
+                            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-emerald-600" /> Submitted</span>
+                            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-amber-400" /> Draft</span>
+                            <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-red-200" /> Missing</span>
+                        </div>
                     </div>
+                </div>
+
+                <!-- Missing today operators -->
+                <div v-if="compliance && compliance.missingToday.length" class="p-5 rounded-2xl ims-glass border-amber-300/60 dark:border-amber-700/40 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-base flex items-center gap-2">
+                            <AlertTriangle :size="16" class="text-amber-500" />
+                            Missing today’s daily report
+                        </h3>
+                        <router-link to="/transactions" class="text-emerald-600 hover:underline text-xs">Review reports</router-link>
+                    </div>
+                    <ul class="space-y-2">
+                        <li
+                            v-for="row in compliance.missingToday"
+                            :key="`${row.userId}-${row.date}`"
+                            class="flex items-center justify-between p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/20 text-sm"
+                        >
+                            <span class="font-semibold text-gray-800 dark:text-gray-200">{{ row.userName || `User #${row.userId}` }}</span>
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white dark:bg-gray-900 text-amber-700">{{ row.status }}</span>
+                        </li>
+                    </ul>
                 </div>
 
                 <!-- Users and logs layouts -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- Users -->
-                    <div class="admin-card p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl">
+                    <div class="admin-card p-6 ims-glass rounded-2xl">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="font-bold text-lg">System Users Directory</h3>
                             <router-link to="/users" class="text-emerald-600 hover:underline text-xs flex items-center gap-1">
@@ -381,7 +476,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                     </div>
 
                     <!-- Logs -->
-                    <div class="admin-card p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl">
+                    <div class="admin-card p-6 ims-glass rounded-2xl">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="font-bold text-lg">Recent Stock Audits</h3>
                             <router-link to="/transactions" class="text-emerald-600 hover:underline text-xs flex items-center gap-1">
@@ -413,39 +508,39 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
             <!-- 2. ADMIN VIEW                              -->
             <!-- ========================================== -->
             <div v-if="currentRole === 'admin'" class="space-y-6">
-                <!-- Stat Grid -->
+                <!-- DIMS KPI strip -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
-                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Inventory Value</p>
-                            <p class="text-2xl font-extrabold mt-2 text-emerald-600">{{ formatCurrency(totalValuation) }}</p>
+                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Submission rate</p>
+                            <p class="text-2xl font-extrabold mt-2 text-emerald-600">{{ compliance?.submissionRatePercent ?? 0 }}%</p>
                         </div>
                         <div class="h-12 w-12 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 rounded-xl flex items-center justify-center">
-                            <BarChart3 :size="22" />
+                            <ClipboardList :size="22" />
                         </div>
                     </div>
 
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
-                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total SKUs Cataloged</p>
-                            <p class="text-2xl font-extrabold mt-2">{{ totalProducts }}</p>
+                            <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Missing days</p>
+                            <p class="text-2xl font-extrabold mt-2" :class="(compliance?.missingDays ?? 0) > 0 ? 'text-red-500' : ''">{{ compliance?.missingDays ?? 0 }}</p>
                         </div>
-                        <div class="h-12 w-12 bg-blue-50 dark:bg-blue-950/20 text-blue-600 rounded-xl flex items-center justify-center">
-                            <PackageCheck :size="22" />
+                        <div class="h-12 w-12 bg-red-50 dark:bg-red-950/20 text-red-500 rounded-xl flex items-center justify-center">
+                            <AlertTriangle :size="22" />
                         </div>
                     </div>
 
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Low Stock SKUs</p>
                             <p class="text-2xl font-extrabold mt-2" :class="lowStockProducts.length > 0 ? 'text-amber-500' : ''">{{ lowStockProducts.length }}</p>
                         </div>
                         <div class="h-12 w-12 bg-amber-50 dark:bg-amber-950/20 text-amber-500 rounded-xl flex items-center justify-center">
-                            <AlertTriangle :size="22" />
+                            <PackageCheck :size="22" />
                         </div>
                     </div>
 
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Out of Stock</p>
                             <p class="text-2xl font-extrabold mt-2" :class="outOfStockProducts.length > 0 ? 'text-red-500' : ''">{{ outOfStockProducts.length }}</p>
@@ -456,10 +551,27 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                     </div>
                 </div>
 
+                <div v-if="compliance && compliance.missingToday.length" class="p-5 rounded-2xl ims-glass border-amber-300/60 dark:border-amber-700/40 shadow-sm">
+                    <h3 class="font-bold text-base mb-3 flex items-center gap-2">
+                        <AlertTriangle :size="16" class="text-amber-500" />
+                        Operators missing today’s report
+                    </h3>
+                    <ul class="grid sm:grid-cols-2 gap-2">
+                        <li
+                            v-for="row in compliance.missingToday"
+                            :key="`${row.userId}-${row.date}`"
+                            class="flex items-center justify-between p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/20 text-sm"
+                        >
+                            <span class="font-semibold">{{ row.userName || `User #${row.userId}` }}</span>
+                            <span class="text-[10px] font-bold uppercase text-amber-700">{{ row.status }}</span>
+                        </li>
+                    </ul>
+                </div>
+
                 <!-- Admin sections -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Low Stock Widget -->
-                    <div class="admin-card p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl lg:col-span-2">
+                    <div class="admin-card p-6 ims-glass rounded-2xl lg:col-span-2">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="font-bold text-lg">Stock Reorder Monitor</h3>
                             <router-link to="/inventory" class="text-emerald-600 hover:underline text-xs flex items-center gap-1">
@@ -506,7 +618,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                     </div>
 
                     <!-- Side Tools Quick Links -->
-                    <div class="admin-card p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl flex flex-col justify-between">
+                    <div class="admin-card p-6 ims-glass rounded-2xl flex flex-col justify-between">
                         <div class="space-y-4">
                             <h3 class="font-bold text-lg">Quick Operations</h3>
                             <p class="text-xs text-gray-400">Shortcuts to create transactions, catalogs, or registries.</p>
@@ -519,17 +631,17 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                                     </span>
                                     <ChevronRight :size="14" class="text-gray-300" />
                                 </router-link>
+                                <router-link to="/transactions" class="w-full flex items-center justify-between p-3 rounded-xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/70 transition text-sm">
+                                    <span class="flex items-center gap-2 font-semibold text-emerald-800 dark:text-emerald-300">
+                                        <ClipboardList :size="16" class="text-emerald-600" />
+                                        Open Daily Reports
+                                    </span>
+                                    <ChevronRight :size="14" class="text-emerald-400" />
+                                </router-link>
                                 <router-link to="/transactions" class="w-full flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:bg-emerald-50/20 hover:border-emerald-200/30 transition text-sm">
                                     <span class="flex items-center gap-2">
                                         <Plus :size="16" class="text-emerald-600" />
-                                        Log Receipt/Dispatch
-                                    </span>
-                                    <ChevronRight :size="14" class="text-gray-300" />
-                                </router-link>
-                                <router-link to="/suppliers" class="w-full flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-800 hover:bg-emerald-50/20 hover:border-emerald-200/30 transition text-sm">
-                                    <span class="flex items-center gap-2">
-                                        <Plus :size="16" class="text-emerald-600" />
-                                        Register Supplier Profile
+                                        Log Stock Voucher
                                     </span>
                                     <ChevronRight :size="14" class="text-gray-300" />
                                 </router-link>
@@ -547,130 +659,153 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
             <!-- ========================================== -->
             <!-- 3. EMPLOYEE — DATA ENTRY (canInput=true)  -->
             <!-- ========================================== -->
-            <div v-if="currentRole === 'employee' && canInput" class="space-y-6">
-                <!-- Employee widgets -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Scanner Simulator Panel -->
-                    <div class="admin-card p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl lg:col-span-2">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="font-bold text-lg">Logistics Scanner Simulator</h3>
-                            <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded text-[10px] font-bold uppercase tracking-wider animate-pulse">
-                                Handheld Online
-                            </span>
-                        </div>
-                        <p class="text-xs text-gray-500 mb-6">
-                            Simulate warehouse barcode scanning by entering a product SKU (e.g. <span class="font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">DFP-LONG-001</span>) or Barcode (<span class="font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">4809001001001</span>).
-                        </p>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Scanning input -->
-                            <div class="space-y-4">
-                                <div class="space-y-1">
-                                    <label class="text-xs font-semibold text-gray-500">Scan Barcode / SKU</label>
-                                    <div class="flex gap-2">
-                                        <input 
-                                            v-model="scanBarcode" 
-                                            type="text" 
-                                            class="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
-                                            placeholder="Enter barcode or SKU"
-                                            @keyup.enter="simulateScan"
-                                        />
-                                        <button 
-                                            @click="simulateScan" 
-                                            class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5"
-                                        >
-                                            <RefreshCw :size="14" />
-                                            Lookup
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div v-if="scannedProduct" class="p-4 bg-gray-50 dark:bg-gray-850 rounded-2xl space-y-3 text-xs border border-gray-100 dark:border-gray-800">
-                                    <div class="flex justify-between items-start">
-                                        <div>
-                                            <p class="font-bold text-sm text-gray-900 dark:text-white">{{ scannedProduct.name }}</p>
-                                            <p class="text-[10px] text-gray-400 mt-0.5">{{ scannedProduct.sku }}</p>
-                                        </div>
-                                        <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 rounded font-bold uppercase tracking-wider text-[9px]">
-                                            {{ scannedProduct.categoryName }}
-                                        </span>
-                                    </div>
-                                    <div class="flex justify-between pt-2 border-t border-gray-200/50">
-                                        <span class="text-gray-500">Current Warehouse Qty:</span>
-                                        <span class="font-bold">{{ scannedProduct.quantity }} {{ scannedProduct.unitOfMeasure }}</span>
-                                    </div>
-                                </div>
-
-                                <div v-if="scannerFeedback" 
-                                    class="p-3 rounded-xl text-xs font-medium border"
-                                    :class="scannerFeedback.startsWith('Success') 
-                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-100 dark:bg-emerald-950/10' 
-                                        : 'bg-amber-50 text-amber-800 border-amber-100 dark:bg-amber-950/10'"
-                                >
-                                    {{ scannerFeedback }}
-                                </div>
+            <div v-if="currentRole === 'employee' && canInput" class="space-y-5">
+                <!-- Single hero: daily report status + CTA -->
+                <section
+                    class="relative overflow-hidden rounded-3xl text-white shadow-xl shadow-emerald-900/15"
+                    :class="needsDailyReport ? 'bg-[#1a4a38]' : 'bg-[#14532d]'"
+                >
+                    <div class="pointer-events-none absolute inset-0 opacity-50"
+                        style="background: radial-gradient(ellipse 60% 80% at 100% 0%, rgba(52,211,153,0.35), transparent 55%), radial-gradient(ellipse 40% 50% at 0% 100%, rgba(0,0,0,0.25), transparent);" />
+                    <div class="relative grid lg:grid-cols-[1.4fr_1fr] gap-6 p-6 md:p-8">
+                        <div class="space-y-4">
+                            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 text-[10px] font-bold uppercase tracking-wider">
+                                <span class="h-1.5 w-1.5 rounded-full" :class="needsDailyReport ? 'bg-amber-300 animate-pulse' : 'bg-emerald-300'" />
+                                {{ needsDailyReport ? 'Action required' : 'Today complete' }}
                             </div>
+                            <div>
+                                <h3 class="text-2xl md:text-3xl font-bold tracking-tight leading-tight">
+                                    <template v-if="compliance?.todayStatus === 'submitted'">Today’s sheet is locked in</template>
+                                    <template v-else-if="compliance?.todayStatus === 'draft'">Finish your draft report</template>
+                                    <template v-else>File today’s daily report</template>
+                                </h3>
+                                <p class="mt-2 text-sm text-emerald-100/85 max-w-md leading-relaxed">
+                                    Auto-computed sales and balance stop manual math mistakes — the core Poka-Yoke of this DIMS.
+                                </p>
+                            </div>
+                            <div class="flex flex-wrap gap-3 pt-1">
+                                <router-link
+                                    to="/transactions"
+                                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-emerald-900 text-sm font-bold hover:bg-emerald-50 transition shadow-lg shadow-black/10"
+                                >
+                                    <ClipboardList :size="16" />
+                                    {{ needsDailyReport ? 'Open daily sheet' : 'View reports' }}
+                                </router-link>
+                                <router-link
+                                    to="/inventory"
+                                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/25 text-sm font-semibold text-white/90 hover:bg-white/10 transition"
+                                >
+                                    Check stock
+                                </router-link>
+                            </div>
+                        </div>
 
-                            <!-- Adjustment controls -->
-                            <div class="space-y-4 flex flex-col justify-between" :class="!scannedProduct ? 'opacity-40 pointer-events-none' : ''">
-                                <div class="space-y-3">
-                                    <div class="space-y-1">
-                                        <label class="text-xs font-semibold text-gray-500">Adjustment Quantity</label>
-                                        <input 
-                                            v-model.number="scanQty" 
-                                            type="number" 
-                                            min="1" 
-                                            class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
-                                        />
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="text-xs font-semibold text-gray-500">Adjustment Notes</label>
-                                        <input 
-                                            v-model="scanNotes" 
-                                            type="text" 
-                                            class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
-                                            placeholder="Reason for change..."
-                                        />
+                        <div class="grid grid-cols-2 gap-3 content-start">
+                            <div class="rounded-2xl bg-black/20 border border-white/10 p-4 backdrop-blur-sm">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-200/80">Submission rate</p>
+                                <p class="text-3xl font-extrabold mt-2 tabular-nums">{{ compliance?.submissionRatePercent ?? 0 }}%</p>
+                                <p class="text-[11px] text-emerald-100/70 mt-1">This month</p>
+                            </div>
+                            <div class="rounded-2xl bg-black/20 border border-white/10 p-4 backdrop-blur-sm">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-200/80">Missing days</p>
+                                <p class="text-3xl font-extrabold mt-2 tabular-nums" :class="(compliance?.missingDays ?? 0) > 0 ? 'text-amber-300' : ''">{{ compliance?.missingDays ?? 0 }}</p>
+                                <p class="text-[11px] text-emerald-100/70 mt-1">Of {{ compliance?.expectedDays ?? 0 }} expected</p>
+                            </div>
+                            <!-- Mini filing calendar -->
+                            <div class="col-span-2 rounded-2xl bg-black/20 border border-white/10 p-4 backdrop-blur-sm">
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-200/80 flex items-center gap-1.5">
+                                        <CalendarDays :size="12" /> {{ calendarMonthLabel }}
+                                    </p>
+                                    <div class="flex gap-2 text-[9px] text-emerald-100/70">
+                                        <span class="inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-sm bg-emerald-400" /> Done</span>
+                                        <span class="inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-sm bg-amber-400" /> Draft</span>
+                                        <span class="inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-sm bg-red-400/80" /> Miss</span>
                                     </div>
                                 </div>
-
-                                <div class="grid grid-cols-2 gap-3 pt-4">
-                                    <button 
-                                        @click="processScanAction('stock-in')" 
-                                        class="py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
+                                <div class="grid grid-cols-7 gap-0.5 text-center text-[8px] font-semibold text-emerald-200/50 mb-1">
+                                    <span v-for="(wd, i) in calendarWeekdays" :key="i">{{ wd }}</span>
+                                </div>
+                                <div class="grid grid-cols-7 gap-0.5">
+                                    <div
+                                        v-for="(cell, idx) in calendarCells"
+                                        :key="idx"
+                                        class="h-6 flex items-center justify-center rounded text-[10px]"
+                                        :class="cell.day === null
+                                            ? ''
+                                            : cell.status === 'submitted'
+                                                ? 'bg-emerald-400/90 text-[#0f3d2e] font-bold'
+                                                : cell.status === 'draft'
+                                                    ? 'bg-amber-400/90 text-amber-950 font-semibold'
+                                                    : cell.status === 'missing'
+                                                        ? 'bg-red-400/40 text-red-50 font-semibold'
+                                                        : cell.isToday
+                                                            ? 'ring-1 ring-white/60 font-bold'
+                                                            : 'text-emerald-100/50'"
                                     >
-                                        <ArrowUpRight :size="16" />
-                                        Stock-In
-                                    </button>
-                                    <button 
-                                        @click="processScanAction('stock-out')" 
-                                        class="py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
-                                    >
-                                        <ArrowDownRight :size="16" />
-                                        Stock-Out
-                                    </button>
+                                        {{ cell.day ?? '' }}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </section>
 
-                    <!-- Operator Guide -->
-                    <div class="admin-card p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl flex flex-col justify-between">
-                        <div class="space-y-4">
-                            <h3 class="font-bold text-lg">Barcode Cheat Sheet</h3>
-                            <p class="text-xs text-gray-500 leading-relaxed">
-                                Use these quick values in the simulator to test real-time stock-in / stock-out transactions:
-                            </p>
-                            
-                            <div class="space-y-2 pt-2 text-xs">
-                                <div v-for="p in products.slice(0, 3)" :key="p.id" class="p-2.5 bg-gray-50 dark:bg-gray-850 rounded-lg flex flex-col gap-0.5 border border-gray-100 dark:border-gray-800/80">
-                                    <p class="font-bold truncate">{{ p.name }}</p>
-                                    <div class="flex justify-between text-[10px] text-gray-400 mt-1">
-                                        <span>SKU: <span class="text-gray-700 dark:text-gray-300 font-semibold">{{ p.sku }}</span></span>
-                                        <span>Barcode: <span class="text-gray-700 dark:text-gray-300 font-semibold">{{ p.barcode }}</span></span>
-                                    </div>
-                                </div>
+                <!-- Compact stock tools (secondary) -->
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                    <div class="lg:col-span-3 rounded-2xl ims-glass p-5 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <div>
+                                <h3 class="font-bold text-gray-900 dark:text-white">Quick stock scan</h3>
+                                <p class="text-[11px] text-gray-500 mt-0.5">Optional — for warehouse adjustments after the daily sheet.</p>
                             </div>
+                            <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">Secondary</span>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <div class="flex-1 flex gap-2">
+                                <input
+                                    v-model="scanBarcode"
+                                    type="text"
+                                    class="flex-1 px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/80 dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/25"
+                                    placeholder="SKU or barcode"
+                                    @keyup.enter="simulateScan"
+                                />
+                                <button
+                                    @click="simulateScan"
+                                    class="px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold"
+                                >
+                                    Lookup
+                                </button>
+                            </div>
+                        </div>
+                        <div v-if="scannedProduct" class="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                            <div class="flex-1 min-w-0">
+                                <p class="font-bold text-sm truncate">{{ scannedProduct.name }}</p>
+                                <p class="text-[10px] text-gray-500">{{ scannedProduct.sku }} · {{ scannedProduct.quantity }} {{ scannedProduct.unitOfMeasure }}</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input v-model.number="scanQty" type="number" min="1" class="w-16 px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-xs text-center" />
+                                <button @click="processScanAction('stock-in')" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-bold">In</button>
+                                <button @click="processScanAction('stock-out')" class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[11px] font-bold">Out</button>
+                            </div>
+                        </div>
+                        <p v-if="scannerFeedback" class="mt-2 text-[11px] text-amber-700 dark:text-amber-400">{{ scannerFeedback }}</p>
+                    </div>
+
+                    <div class="lg:col-span-2 rounded-2xl ims-glass p-5 shadow-sm">
+                        <h3 class="font-bold text-gray-900 dark:text-white text-sm">Sample SKUs</h3>
+                        <p class="text-[11px] text-gray-500 mt-0.5 mb-3">Tap to fill the scanner</p>
+                        <div class="space-y-1.5">
+                            <button
+                                v-for="p in products.slice(0, 4)"
+                                :key="p.id"
+                                type="button"
+                                class="w-full text-left px-3 py-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition border border-transparent hover:border-emerald-100 dark:hover:border-emerald-900/40"
+                                @click="scanBarcode = p.barcode || p.sku; simulateScan()"
+                            >
+                                <p class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">{{ p.name }}</p>
+                                <p class="text-[10px] text-gray-400 font-mono mt-0.5">{{ p.sku }}</p>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -682,7 +817,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
             <div v-if="currentRole === 'employee' && !canInput" class="space-y-6">
                 <!-- Read-only stat cards -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Products</p>
                             <p class="text-2xl font-extrabold mt-2">{{ totalProducts }}</p>
@@ -692,7 +827,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                         </div>
                     </div>
 
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Inventory Value</p>
                             <p class="text-2xl font-extrabold mt-2 text-emerald-600">{{ formatCurrency(totalValuation) }}</p>
@@ -702,7 +837,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                         </div>
                     </div>
 
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Low Stock Items</p>
                             <p class="text-2xl font-extrabold mt-2" :class="lowStockProducts.length > 0 ? 'text-amber-500' : ''">{{ lowStockProducts.length }}</p>
@@ -712,7 +847,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                         </div>
                     </div>
 
-                    <div class="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+                    <div class="p-6 rounded-2xl ims-glass shadow-sm flex items-center justify-between">
                         <div>
                             <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Out of Stock</p>
                             <p class="text-2xl font-extrabold mt-2" :class="outOfStockProducts.length > 0 ? 'text-red-500' : ''">{{ outOfStockProducts.length }}</p>
@@ -726,7 +861,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                 <!-- Read-only panels -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Recent Transactions (read-only) -->
-                    <div class="p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl lg:col-span-2">
+                    <div class="p-6 ims-glass rounded-2xl lg:col-span-2">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="font-bold text-lg">Recent Stock Movements</h3>
                             <router-link to="/transactions" class="text-emerald-600 hover:underline text-xs flex items-center gap-1">
@@ -761,7 +896,7 @@ async function processScanAction(type: 'stock-in' | 'stock-out') {
                     </div>
 
                     <!-- Inventory summary -->
-                    <div class="p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl flex flex-col justify-between">
+                    <div class="p-6 ims-glass rounded-2xl flex flex-col justify-between">
                         <div class="space-y-4">
                             <h3 class="font-bold text-lg">Inventory Overview</h3>
                             <p class="text-xs text-gray-500 leading-relaxed">

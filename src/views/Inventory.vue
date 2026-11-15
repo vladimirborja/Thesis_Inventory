@@ -160,23 +160,44 @@ async function handleDelete(id: number) {
     <AppLayout>
         <div class="space-y-6">
             <!-- Header section -->
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Inventory Catalog</h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Manage raw ingredients, additives, and finished packaging reserves.</p>
+                    <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700/80 dark:text-emerald-400">Finished goods</p>
+                    <h2 class="text-2xl md:text-[1.75rem] font-bold tracking-tight text-gray-900 dark:text-white mt-1">Inventory Catalog</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-lg">Processed meats and packaged products — qty, cost valuation, and reorder thresholds.</p>
                 </div>
                 <button 
                     v-if="isAdmin"
                     @click="openAddModal"
-                    class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-600/10 transition shrink-0"
+                    class="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-900/15 transition shrink-0"
                 >
                     <Plus :size="16" />
-                    Register SKU Catalog
+                    Register SKU
                 </button>
             </div>
 
+            <!-- Status chips -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div class="rounded-2xl ims-glass px-4 py-3">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">SKUs</p>
+                    <p class="text-xl font-extrabold mt-1 tabular-nums text-gray-900 dark:text-white">{{ products.length }}</p>
+                </div>
+                <div class="rounded-2xl ims-glass px-4 py-3">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Optimal</p>
+                    <p class="text-xl font-extrabold mt-1 tabular-nums text-emerald-700 dark:text-emerald-400">{{ products.filter(p => p.quantity > p.minStockLevel).length }}</p>
+                </div>
+                <div class="rounded-2xl ims-glass px-4 py-3">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Low stock</p>
+                    <p class="text-xl font-extrabold mt-1 tabular-nums text-amber-600 dark:text-amber-400">{{ products.filter(p => p.quantity > 0 && p.quantity <= p.minStockLevel).length }}</p>
+                </div>
+                <div class="rounded-2xl ims-glass px-4 py-3">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Out</p>
+                    <p class="text-xl font-extrabold mt-1 tabular-nums text-red-600 dark:text-red-400">{{ products.filter(p => p.quantity === 0).length }}</p>
+                </div>
+            </div>
+
             <!-- Filters Toolbar -->
-            <div class="p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+            <div class="p-3.5 ims-glass rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
                 <!-- Search bar -->
                 <div class="relative flex-1 max-w-md">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
@@ -221,66 +242,66 @@ async function handleDelete(id: number) {
             </div>
 
             <!-- Table Card -->
-            <div class="admin-table-wrap overflow-x-auto bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-sm">
+            <div class="admin-table-wrap overflow-x-auto ims-glass rounded-2xl shadow-sm">
                 <table class="w-full text-left border-collapse text-xs md:text-sm">
-                    <thead class="bg-gray-50 dark:bg-gray-800/80 text-gray-400 dark:text-gray-300 border-b border-gray-100 dark:border-gray-800 uppercase text-[10px] tracking-wider font-bold">
+                    <thead class="bg-emerald-950/[0.03] dark:bg-gray-800/80 text-gray-500 dark:text-gray-300 border-b border-emerald-900/8 dark:border-gray-800 uppercase text-[10px] tracking-wider font-bold">
                         <tr>
-                            <th class="px-6 py-4">Item Details</th>
-                            <th class="px-6 py-4">SKU / Barcode</th>
-                            <th class="px-6 py-4">Quantity Available</th>
-                            <th class="px-6 py-4">Valuation (Cost)</th>
-                            <th class="px-6 py-4">Threshold</th>
-                            <th v-if="isAdmin" class="px-6 py-4 text-right">Actions</th>
+                            <th class="px-5 py-3">Product</th>
+                            <th class="px-5 py-3">SKU / Barcode</th>
+                            <th class="px-5 py-3">On hand</th>
+                            <th class="px-5 py-3">Valuation</th>
+                            <th class="px-5 py-3">Reorder at</th>
+                            <th v-if="isAdmin" class="px-5 py-3 text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-50 dark:divide-gray-800/50">
+                    <tbody class="divide-y divide-emerald-900/5 dark:divide-gray-800/50">
                         <tr v-if="filteredProducts.length === 0">
-                            <td colspan="6" class="px-6 py-12 text-center text-gray-400">
+                            <td colspan="6" class="px-5 py-12 text-center text-gray-400">
                                 No items match the active catalog filters.
                             </td>
                         </tr>
-                        <tr v-for="p in filteredProducts" :key="p.id" class="hover:bg-gray-50/50 dark:hover:bg-gray-850 transition">
-                            <td class="px-6 py-4">
+                        <tr v-for="p in filteredProducts" :key="p.id" class="hover:bg-emerald-50/40 dark:hover:bg-gray-850 transition">
+                            <td class="px-5 py-3">
                                 <div class="flex items-center gap-3">
-                                    <div class="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-300 flex items-center justify-center font-bold">
-                                        <Tag :size="16" />
+                                    <div class="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
+                                        <Tag :size="15" />
                                     </div>
                                     <div>
-                                        <p class="font-bold text-gray-900 dark:text-white text-xs md:text-sm">{{ p.name }}</p>
-                                        <p class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase mt-0.5">{{ p.categoryName }}</p>
+                                        <p class="font-bold text-gray-900 dark:text-white text-sm">{{ p.name }}</p>
+                                        <p class="text-[10px] text-emerald-700/80 dark:text-emerald-400 font-semibold uppercase mt-0.5 tracking-wide">{{ p.categoryName }}</p>
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-6 py-4 font-mono text-[10px] text-gray-500">
-                                <p>SKU: {{ p.sku }}</p>
-                                <p class="mt-0.5 text-gray-400" v-if="p.barcode">UPC: {{ p.barcode }}</p>
+                            <td class="px-5 py-3 font-mono text-[11px] text-gray-500">
+                                <p class="font-semibold text-gray-700 dark:text-gray-300">{{ p.sku }}</p>
+                                <p class="mt-0.5 text-gray-400" v-if="p.barcode">{{ p.barcode }}</p>
                             </td>
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-2">
-                                    <span class="font-bold text-sm" 
-                                        :class="p.quantity === 0 ? 'text-red-500' : p.quantity <= p.minStockLevel ? 'text-amber-500' : 'text-gray-900 dark:text-white'">
+                            <td class="px-5 py-3">
+                                <div class="flex items-baseline gap-1.5">
+                                    <span class="font-extrabold text-base tabular-nums" 
+                                        :class="p.quantity === 0 ? 'text-red-500' : p.quantity <= p.minStockLevel ? 'text-amber-600' : 'text-gray-900 dark:text-white'">
                                         {{ p.quantity }}
                                     </span>
-                                    <span class="text-gray-400 text-xs">{{ p.unitOfMeasure }}</span>
+                                    <span class="text-gray-400 text-[11px]">{{ p.unitOfMeasure }}</span>
                                 </div>
-                                <span v-if="p.quantity === 0" class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-red-500 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 rounded-full uppercase">
-                                    <ShieldX :size="10" /> Out of stock
+                                <span v-if="p.quantity === 0" class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-red-600 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 rounded-md uppercase tracking-wide">
+                                    <ShieldX :size="10" /> Out
                                 </span>
-                                <span v-else-if="p.quantity <= p.minStockLevel" class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/20 px-2 py-0.5 rounded-full uppercase">
-                                    <AlertTriangle :size="10" /> Low Stock Warning
+                                <span v-else-if="p.quantity <= p.minStockLevel" class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/20 px-2 py-0.5 rounded-md uppercase tracking-wide">
+                                    <AlertTriangle :size="10" /> Low
                                 </span>
-                                <span v-else class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded-full uppercase">
-                                    <PackageCheck :size="10" /> Optimal Level
+                                <span v-else class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded-md uppercase tracking-wide">
+                                    <PackageCheck :size="10" /> Optimal
                                 </span>
                             </td>
-                            <td class="px-6 py-4">
-                                <p class="font-semibold text-gray-900 dark:text-white">{{ formatCurrency(p.costPrice * p.quantity) }}</p>
-                                <p class="text-[10px] text-gray-400 mt-0.5">Unit cost: {{ formatCurrency(p.costPrice) }}</p>
+                            <td class="px-5 py-3">
+                                <p class="font-bold text-gray-900 dark:text-white tabular-nums">{{ formatCurrency(p.costPrice * p.quantity) }}</p>
+                                <p class="text-[10px] text-gray-400 mt-0.5">@ {{ formatCurrency(p.costPrice) }}</p>
                             </td>
-                            <td class="px-6 py-4 text-xs text-gray-500">
-                                Warn below {{ p.minStockLevel }} {{ p.unitOfMeasure }}
+                            <td class="px-5 py-3 text-xs text-gray-500 tabular-nums">
+                                {{ p.minStockLevel }} {{ p.unitOfMeasure }}
                             </td>
-                            <td v-if="isAdmin" class="px-6 py-4 text-right">
+                            <td v-if="isAdmin" class="px-5 py-3 text-right">
                                 <div class="flex items-center justify-end gap-2">
                                     <button 
                                         @click="openEditModal(p)"
@@ -309,7 +330,7 @@ async function handleDelete(id: number) {
                 <div @click="isModalOpen = false" class="fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
 
                 <!-- Modal box -->
-                <div class="relative bg-white dark:bg-gray-900 rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-6">
+                <div class="relative ims-glass rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl space-y-6">
                     <button @click="isModalOpen = false" class="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-400">
                         <X :size="18" />
                     </button>

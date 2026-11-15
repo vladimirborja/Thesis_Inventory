@@ -61,7 +61,18 @@ async function request<T>(
     }
 
     if (!res.ok) {
-        throw new Error(data?.detail ?? `Request failed (${res.status})`);
+        const detail = data?.detail;
+        let message: string;
+        if (typeof detail === 'string') {
+            message = detail;
+        } else if (detail && typeof detail === 'object' && typeof detail.message === 'string') {
+            message = detail.message;
+        } else if (Array.isArray(detail)) {
+            message = detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ');
+        } else {
+            message = `Request failed (${res.status})`;
+        }
+        throw new Error(message);
     }
 
     return data as T;

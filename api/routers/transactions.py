@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from api.database import get_db
-from api.dependencies import get_current_user, log_activity
+from api.dependencies import get_current_user, require_transaction_input, log_activity
 from api.models import StockTransaction, Product, Warehouse, Supplier, User
 from api.schemas import TransactionCreate, TransactionResponse
 
@@ -55,7 +55,7 @@ def list_transactions(
 def create_transaction(
     body: TransactionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_transaction_input),
 ):
     product = db.query(Product).filter(Product.id == body.product_id).first()
     if not product:

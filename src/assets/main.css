@@ -77,6 +77,12 @@
 }
 
 :root {
+    /* Duque Food Products brand — used by Landing, CompanyInfo, Login */
+    --brand-red: #d42d2a;
+    --brand-gold: #f39c12;
+    --brand-green: #1b7c3d;
+    --brand-green-deep: #0f4d28;
+
     --background: hsl(0 0% 100%);
     --foreground: hsl(0 0% 3.9%);
     --card: hsl(0 0% 100%);

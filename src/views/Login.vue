@@ -14,9 +14,11 @@ import {
   EyeOff,
 } from 'lucide-vue-next'
 import { LightWaves } from '@/components/ui/light-waves'
+import { useDarkMode } from '@/composables/useDarkMode'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { isDark } = useDarkMode()
 
 const isRegister = ref(false)
 
@@ -119,15 +121,20 @@ async function handleRegister() {
     :class="{ 'is-mounted': mounted }"
   >
     <LightWaves
-      class="pointer-events-none fixed inset-0 -z-10 min-h-screen bg-white"
-      :colors="['#D42D2A', '#F39C12', '#1B7C3D', '#FFFFFF']"
+      class="pointer-events-none fixed inset-0 -z-10 min-h-screen bg-white dark:bg-[#050a08]"
+      :colors="
+        isDark
+          ? ['#FF5A55', '#FFB020', '#3DDC84', '#86EFAC']
+          : ['#D42D2A', '#F39C12', '#1B7C3D', '#FFFFFF']
+      "
       placement="bottom"
       :amplitude="1"
       :angle="0"
       :depth="0.7"
-      :fill="0.15"
+      :fill="isDark ? 0.28 : 0.15"
       :height="0.55"
       :layers="6"
+      :intensity="isDark ? 1.45 : 1"
     />
 
     <button

@@ -4,8 +4,10 @@ import { useRouter } from 'vue-router'
 import { MapPin, Phone, Mail, Clock, ArrowLeft, Facebook, Send } from 'lucide-vue-next'
 import Skiper6HoverMember from '@/components/v1/Skiper6HoverMember.vue'
 import { LightWaves } from '@/components/ui/light-waves'
+import { useDarkMode } from '@/composables/useDarkMode'
 
 const router = useRouter()
+const { isDark } = useDarkMode()
 const CONTACT_EMAIL = 'duquefoodproducts@gmail.com'
 
 const inquiry = reactive({
@@ -40,18 +42,23 @@ const products = [
 </script>
 
 <template>
-  <div class="company-page relative min-h-screen overflow-x-hidden font-sans text-gray-900">
+  <div class="company-page relative min-h-screen overflow-x-hidden font-sans text-gray-900 dark:text-gray-100">
     <!-- Full-page Light Waves background -->
     <LightWaves
-      class="pointer-events-none fixed inset-0 -z-10 min-h-screen bg-white"
-      :colors="['#D42D2A', '#F39C12', '#1B7C3D', '#FFFFFF']"
+      class="pointer-events-none fixed inset-0 -z-10 min-h-screen bg-white dark:bg-[#050a08]"
+      :colors="
+        isDark
+          ? ['#FF5A55', '#FFB020', '#3DDC84', '#86EFAC']
+          : ['#D42D2A', '#F39C12', '#1B7C3D', '#FFFFFF']
+      "
       placement="bottom"
       :amplitude="1"
       :angle="0"
       :depth="0.7"
-      :fill="0.15"
+      :fill="isDark ? 0.28 : 0.15"
       :height="0.55"
       :layers="6"
+      :intensity="isDark ? 1.45 : 1"
     />
 
     <!-- Top bar -->
@@ -64,7 +71,7 @@ const products = [
             class="h-11 w-11 shrink-0 rounded-full object-cover shadow-sm"
           />
           <div class="min-w-0">
-            <p class="truncate font-bold tracking-tight text-gray-900">Duque Food Products</p>
+            <p class="truncate font-bold tracking-tight text-gray-900 dark:text-white">Duque Food Products</p>
             <p class="text-[10px] uppercase tracking-wider text-[var(--brand-green)]">
               Company Information
             </p>
@@ -73,7 +80,7 @@ const products = [
         <div class="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            class="hidden items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-black/5 sm:inline-flex"
+            class="hidden items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-black/5 dark:text-gray-200 dark:hover:bg-white/10 sm:inline-flex"
             @click="router.push('/')"
           >
             <ArrowLeft :size="14" /> Home
@@ -194,15 +201,6 @@ const products = [
 
       <!-- Our Products -->
       <section class="space-y-5">
-        <div class="liquid-glass liquid-glass--light space-y-2 rounded-3xl px-6 py-6 md:px-8">
-          <h2 class="text-xl font-bold tracking-tight text-[var(--brand-green-deep)]">
-            Our Products
-          </h2>
-          <p class="text-sm text-gray-600">
-            Eight signature processed meats — hover any photo to spotlight it.
-          </p>
-        </div>
-
         <div class="liquid-glass-stage relative">
           <div
             class="pointer-events-none absolute -inset-6 -z-10 rounded-[2.5rem] opacity-90 blur-2xl"
@@ -257,8 +255,8 @@ const products = [
             Contact & Location
           </h2>
         </div>
-        <div class="grid gap-5 lg:grid-cols-5">
-          <div class="space-y-3 text-sm lg:col-span-2">
+        <div class="grid items-stretch gap-5 lg:grid-cols-5">
+          <div class="flex h-full flex-col space-y-3 text-sm lg:col-span-2">
             <div class="liquid-glass liquid-glass--light space-y-3 rounded-2xl p-5">
               <p class="flex items-start gap-2">
                 <MapPin :size="16" class="mt-0.5 shrink-0 text-[var(--brand-red)]" />
@@ -290,7 +288,7 @@ const products = [
             </div>
 
             <form
-              class="liquid-glass liquid-glass--light space-y-4 rounded-2xl p-5"
+              class="liquid-glass liquid-glass--light flex flex-1 flex-col space-y-4 rounded-2xl p-5"
               @submit.prevent="sendInquiry"
             >
               <div class="space-y-1">
@@ -329,7 +327,7 @@ const products = [
                 />
               </label>
 
-              <label class="block space-y-1.5">
+              <label class="block flex-1 space-y-1.5">
                 <span class="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-400">
                   Message
                 </span>
@@ -338,7 +336,7 @@ const products = [
                   required
                   rows="4"
                   placeholder="Hi, I'd like to ask about…"
-                  class="inquiry-input resize-none"
+                  class="inquiry-input min-h-[6.5rem] flex-1 resize-none"
                 />
               </label>
 
@@ -348,19 +346,18 @@ const products = [
               </button>
             </form>
           </div>
-          <div class="lg:col-span-3">
-            <div class="liquid-glass liquid-glass--light overflow-hidden rounded-2xl">
-              <div class="relative aspect-[4/3] w-full sm:aspect-[16/10]">
-                <iframe
-                  class="absolute inset-0 h-full w-full border-0"
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3851.585063679261!2d120.62408617498862!3d15.12618056399328!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3396f100018ce5cd%3A0x2eb80025c77db1cf!2sDuque%20Food%20Products!5e0!3m2!1sen!2sph!4v1784893906460!5m2!1sen!2sph"
-                  allowfullscreen
-                  loading="lazy"
-                  referrerpolicy="strict-origin-when-cross-origin"
-                  title="Duque Food Products location map"
-                />
-              </div>
-            </div>
+
+          <div
+            class="liquid-glass liquid-glass--light relative min-h-[280px] overflow-hidden rounded-2xl sm:min-h-[320px] lg:col-span-3 lg:min-h-0"
+          >
+            <iframe
+              class="absolute inset-0 h-full w-full border-0"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3851.585063679261!2d120.62408617498862!3d15.12618056399328!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3396f100018ce5cd%3A0x2eb80025c77db1cf!2sDuque%20Food%20Products!5e0!3m2!1sen!2sph!4v1784893906460!5m2!1sen!2sph"
+              allowfullscreen
+              loading="lazy"
+              referrerpolicy="strict-origin-when-cross-origin"
+              title="Duque Food Products location map"
+            />
           </div>
         </div>
       </section>
@@ -392,7 +389,7 @@ const products = [
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border: 1px solid transparent;
+  border: 2px solid rgba(255, 255, 255, 0.55);
   background: rgba(255, 255, 255, 0.55);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.9) inset,
@@ -407,8 +404,8 @@ const products = [
     background: linear-gradient(
       155deg,
       rgba(255, 255, 255, 0.78) 0%,
-      rgba(255, 255, 255, 0.42) 48%,
-      rgba(255, 255, 255, 0.28) 100%
+      rgba(255, 255, 255, 0.48) 48%,
+      rgba(232, 242, 236, 0.42) 100%
     );
     -webkit-backdrop-filter: blur(24px) saturate(170%);
     backdrop-filter: blur(24px) saturate(170%);
@@ -428,10 +425,17 @@ const products = [
 
 .liquid-glass--light {
   background: rgba(255, 255, 255, 0.55);
+  border-color: color-mix(in srgb, var(--brand-green) 28%, rgba(255, 255, 255, 0.85));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -8px 20px rgba(0, 0, 0, 0.04) inset,
+    0 12px 32px rgba(0, 48, 28, 0.1),
+    0 0 0 1px color-mix(in srgb, var(--brand-green) 12%, transparent);
 }
 
 .liquid-glass--brand {
   background: color-mix(in srgb, var(--brand-green-deep) 78%, #04110a);
+  border-color: color-mix(in srgb, var(--brand-gold) 45%, rgba(255, 255, 255, 0.55));
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.35) inset,
     0 -12px 28px rgba(0, 0, 0, 0.28) inset,
@@ -465,15 +469,14 @@ const products = [
   z-index: 2;
   border-radius: inherit;
   pointer-events: none;
-  padding: 1.5px;
+  padding: 2px;
   background: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.95) 0%,
-    rgba(255, 255, 255, 0.55) 18%,
-    rgba(27, 124, 61, 0.28) 42%,
-    rgba(240, 144, 32, 0.4) 68%,
-    rgba(212, 45, 42, 0.35) 85%,
-    rgba(255, 255, 255, 0.7) 100%
+    color-mix(in srgb, var(--brand-green) 55%, white) 22%,
+    color-mix(in srgb, var(--brand-gold) 65%, white) 48%,
+    color-mix(in srgb, var(--brand-red) 50%, white) 72%,
+    rgba(255, 255, 255, 0.85) 100%
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,

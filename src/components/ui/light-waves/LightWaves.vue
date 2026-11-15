@@ -179,7 +179,9 @@ void main(){
     col += g * u_grain * 0.15;
   }
 
-  fragColor = vec4(col, clamp(alpha * u_opacity, 0.0, 1.0));
+  // Premultiply so waves composite correctly on both light and dark page backgrounds
+  float a = clamp(alpha * u_opacity, 0.0, 1.0);
+  fragColor = vec4(col * a, a);
 }`
 
 function parseColor(hex: string): [number, number, number] {
@@ -322,7 +324,8 @@ function init() {
   gl.enableVertexAttribArray(a)
   gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0)
   gl.enable(gl.BLEND)
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+  // Premultiplied alpha blend — keeps brand waves visible on dark backgrounds
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
 
   reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   raf = requestAnimationFrame(frame)

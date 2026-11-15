@@ -16,9 +16,11 @@ import {
   Handshake,
 } from 'lucide-vue-next'
 import { LightWaves } from '@/components/ui/light-waves'
+import { useDarkMode } from '@/composables/useDarkMode'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { isDark } = useDarkMode()
 
 const isLoggedIn = computed(() => !!authStore.currentUser)
 
@@ -55,18 +57,23 @@ function handleProfileClick() {
 </script>
 
 <template>
-  <div class="landing-page relative flex min-h-screen flex-col overflow-x-hidden font-sans text-gray-900">
+  <div class="landing-page relative flex min-h-screen flex-col overflow-x-hidden font-sans text-gray-900 dark:text-gray-100">
     <!-- Full-page Light Waves background -->
     <LightWaves
-      class="pointer-events-none fixed inset-0 -z-10 min-h-screen bg-white"
-      :colors="['#D42D2A', '#F39C12', '#1B7C3D', '#FFFFFF']"
+      class="pointer-events-none fixed inset-0 -z-10 min-h-screen bg-white dark:bg-[#050a08]"
+      :colors="
+        isDark
+          ? ['#FF5A55', '#FFB020', '#3DDC84', '#86EFAC']
+          : ['#D42D2A', '#F39C12', '#1B7C3D', '#FFFFFF']
+      "
       placement="bottom"
       :amplitude="1"
       :angle="0"
       :depth="0.7"
-      :fill="0.15"
+      :fill="isDark ? 0.28 : 0.15"
       :height="0.55"
       :layers="6"
+      :intensity="isDark ? 1.45 : 1"
     />
 
     <!-- Header -->
@@ -79,7 +86,7 @@ function handleProfileClick() {
             class="h-10 w-10 rounded-full object-cover shadow-md"
           />
           <div>
-            <h1 class="text-lg font-bold tracking-tight text-gray-900">Duque Food Products</h1>
+            <h1 class="text-lg font-bold tracking-tight text-gray-900 dark:text-white">Duque Food Products</h1>
             <p class="text-[10px] font-semibold tracking-wider text-[var(--brand-green)] uppercase">
               DIMS Company Portal
             </p>
@@ -90,13 +97,13 @@ function handleProfileClick() {
           <template v-if="isLoggedIn">
             <button
               @click="handleProfileClick"
-              class="flex items-center gap-2 rounded-xl bg-[var(--brand-green)]/10 px-4 py-2 text-sm font-semibold text-[var(--brand-green-deep)] transition hover:bg-[var(--brand-green)]/15"
+              class="flex items-center gap-2 rounded-xl bg-[var(--brand-green)]/10 px-4 py-2 text-sm font-semibold text-[var(--brand-green-deep)] transition hover:bg-[var(--brand-green)]/15 dark:text-emerald-200"
             >
               <LayoutDashboard :size="16" />
               <span>Go to Dashboard</span>
             </button>
             <div
-              class="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-green)]/15 text-sm font-bold uppercase text-[var(--brand-green-deep)]"
+              class="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-green)]/15 text-sm font-bold uppercase text-[var(--brand-green-deep)] dark:text-emerald-200"
             >
               {{ authStore.currentUser?.name.charAt(0) }}
             </div>
@@ -104,7 +111,7 @@ function handleProfileClick() {
           <template v-else>
             <button
               @click="handleProfileClick"
-              class="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-white/50 hover:text-gray-900"
+              class="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-white/50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
               title="Profile / Sign In"
             >
               <User :size="20" />
@@ -289,8 +296,9 @@ function handleProfileClick() {
 .liquid-glass {
   position: relative;
   isolation: isolate;
+  overflow: hidden;
   background: color-mix(in srgb, var(--brand-green-deep) 72%, #04110a);
-  border: 1px solid transparent;
+  border: 2px solid rgba(255, 255, 255, 0.55);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.35) inset,
     0 -12px 28px rgba(0, 0, 0, 0.22) inset,
@@ -313,24 +321,23 @@ function handleProfileClick() {
   .liquid-glass--light {
     background: linear-gradient(
       155deg,
-      rgba(255, 255, 255, 0.72) 0%,
-      rgba(255, 255, 255, 0.42) 45%,
-      rgba(247, 245, 240, 0.55) 100%
+      rgba(255, 255, 255, 0.78) 0%,
+      rgba(255, 255, 255, 0.48) 45%,
+      rgba(232, 242, 236, 0.58) 100%
     );
     -webkit-backdrop-filter: blur(22px) saturate(160%);
     backdrop-filter: blur(22px) saturate(160%);
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.85) inset,
-      0 -8px 20px rgba(0, 0, 0, 0.04) inset,
-      0 12px 32px rgba(0, 48, 28, 0.08);
   }
 }
 
 .liquid-glass--light {
   background: rgba(255, 255, 255, 0.72);
+  border-color: color-mix(in srgb, var(--brand-green) 28%, rgba(255, 255, 255, 0.85));
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.85) inset,
-    0 12px 32px rgba(0, 48, 28, 0.08);
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -8px 20px rgba(0, 0, 0, 0.04) inset,
+    0 12px 32px rgba(0, 48, 28, 0.1),
+    0 0 0 1px color-mix(in srgb, var(--brand-green) 12%, transparent);
 }
 
 .liquid-glass::before {
@@ -342,13 +349,13 @@ function handleProfileClick() {
   pointer-events: none;
   background: linear-gradient(
     125deg,
-    rgba(255, 255, 255, 0.45) 0%,
-    rgba(255, 255, 255, 0.1) 22%,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 255, 0.18) 22%,
     transparent 45%,
     transparent 60%,
-    rgba(255, 255, 255, 0.06) 100%
+    rgba(255, 255, 255, 0.1) 100%
   );
-  opacity: 0.8;
+  opacity: 0.85;
   mix-blend-mode: soft-light;
 }
 
@@ -359,14 +366,14 @@ function handleProfileClick() {
   z-index: 2;
   border-radius: inherit;
   pointer-events: none;
-  padding: 1.25px;
+  padding: 2px;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(255, 255, 255, 0.35) 20%,
-    rgba(255, 255, 255, 0.08) 45%,
-    rgba(240, 144, 32, 0.28) 72%,
-    rgba(255, 255, 255, 0.5) 100%
+    rgba(255, 255, 255, 0.95) 0%,
+    color-mix(in srgb, var(--brand-green) 55%, white) 22%,
+    color-mix(in srgb, var(--brand-gold) 65%, white) 48%,
+    color-mix(in srgb, var(--brand-red) 50%, white) 72%,
+    rgba(255, 255, 255, 0.85) 100%
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,

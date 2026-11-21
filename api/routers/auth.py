@@ -27,9 +27,7 @@ router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-MAX_IMAGE_SIZE_MB = 3
-# Serverless (Vercel) has a read-only filesystem — persist small avatars in Neon as data URLs.
-MAX_INLINE_AVATAR_BYTES = 900_000
+MAX_IMAGE_SIZE_MB = 5
 UPLOAD_ROOT = Path(__file__).resolve().parents[2] / "uploads" / "avatars"
 
 
@@ -160,11 +158,6 @@ async def upload_avatar(
             dest.write_bytes(contents)
             avatar_url = f"/api/auth/avatars/{filename}"
         except OSError:
-            if len(contents) > MAX_INLINE_AVATAR_BYTES:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Image is too large for serverless storage. Use a photo under 900KB, or configure Cloudinary.",
-                )
             mime = file.content_type or "image/png"
             avatar_url = f"data:{mime};base64,{base64.b64encode(contents).decode('ascii')}"
 

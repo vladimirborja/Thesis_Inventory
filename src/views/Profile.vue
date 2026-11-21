@@ -77,8 +77,8 @@ async function onAvatarSelected(e: Event) {
     flash('Use JPEG, PNG, or WebP.', 'error')
     return
   }
-  if (file.size > 3 * 1024 * 1024) {
-    flash('Image must be under 3MB.', 'error')
+  if (file.size > 5 * 1024 * 1024) {
+    flash('Image must be under 5MB.', 'error')
     return
   }
   isUploading.value = true

@@ -2,6 +2,7 @@
 api/routers/auth.py — Login, Register, /me, profile + avatar
 """
 
+import base64
 import os
 import uuid
 from pathlib import Path
@@ -27,6 +28,8 @@ limiter = Limiter(key_func=get_remote_address)
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_SIZE_MB = 3
+# Serverless (Vercel) has a read-only filesystem — persist small avatars in Neon as data URLs.
+MAX_INLINE_AVATAR_BYTES = 900_000
 UPLOAD_ROOT = Path(__file__).resolve().parents[2] / "uploads" / "avatars"
 
 
@@ -142,19 +145,35 @@ async def upload_avatar(
         )
         avatar_url = result["secure_url"]
     else:
-        UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
-        ext = {
-            "image/jpeg": ".jpg",
-            "image/png": ".png",
-            "image/webp": ".webp",
-        }.get(file.content_type or "", ".jpg")
-        filename = f"{current_user.id}_{uuid.uuid4().hex[:8]}{ext}"
-        dest = UPLOAD_ROOT / filename
-        dest.write_bytes(contents)
-        avatar_url = f"/api/auth/avatars/{filename}"
+        # Prefer writing to disk in local/dev; fall back to inline data URL on
+        # read-only hosts (Vercel) so profile photo upload never 500s.
+        avatar_url = None
+        try:
+            UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+            ext = {
+                "image/jpeg": ".jpg",
+                "image/png": ".png",
+                "image/webp": ".webp",
+            }.get(file.content_type or "", ".jpg")
+            filename = f"{current_user.id}_{uuid.uuid4().hex[:8]}{ext}"
+            dest = UPLOAD_ROOT / filename
+            dest.write_bytes(contents)
+            avatar_url = f"/api/auth/avatars/{filename}"
+        except OSError:
+            if len(contents) > MAX_INLINE_AVATAR_BYTES:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Image is too large for serverless storage. Use a photo under 900KB, or configure Cloudinary.",
+                )
+            mime = file.content_type or "image/png"
+            avatar_url = f"data:{mime};base64,{base64.b64encode(contents).decode('ascii')}"
 
     current_user.avatar_url = avatar_url
-    log_activity(db, current_user.id, "avatar-upload", {"url": avatar_url})
+    log_activity(db, current_user.id, "avatar-upload", {
+        "storage": "cloudinary" if _cloudinary_configured() else (
+            "data-url" if avatar_url.startswith("data:") else "local"
+        ),
+    })
     db.commit()
     db.refresh(current_user)
     return UserResponse.model_validate(current_user)

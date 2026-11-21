@@ -29,9 +29,15 @@ from api.routers import (
 async def lifespan(app: FastAPI):
     # Tables should already exist (created via database.sql + seed.py),
     # but this is a safe guard for the very first deploy.
-    from api.database import engine
-    from api.models import Base
-    Base.metadata.create_all(bind=engine)
+    try:
+        from api.database import engine
+        from api.models import Base
+        if engine is not None:
+            Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        # Never crash the whole function on startup — health/register
+        # should still return a clear JSON error instead of FUNCTION_INVOCATION_FAILED.
+        print(f"[startup] create_all skipped: {type(exc).__name__}: {exc}")
     yield
 
 
@@ -80,7 +86,27 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ── Health check ───────────────────────────────────────────────────────────────
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "1.0.0"}
+    from api.database import DATABASE_URL, engine
+    db_ok = False
+    db_error = None
+    if not DATABASE_URL:
+        db_error = "DATABASE_URL missing"
+    elif engine is None:
+        db_error = "engine not initialized"
+    else:
+        try:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            db_ok = True
+        except Exception as exc:
+            db_error = f"{type(exc).__name__}: {exc}"
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "version": "1.0.0",
+        "database": "ok" if db_ok else "error",
+        "database_error": db_error,
+    }
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(auth.router,         prefix="/api/auth",         tags=["Auth"])

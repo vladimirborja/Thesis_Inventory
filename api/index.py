@@ -52,9 +52,18 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
+_allowed = [
+    origin.strip()
+    for origin in FRONTEND_ORIGIN.split(",")
+    if origin.strip()
+] + [
+    "http://localhost:5173",
+    "https://duque-dims.vercel.app",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN, "https://*.vercel.app"],
+    allow_origins=_allowed,
+    allow_origin_regex=r"https://duque-dims(-[\w-]+)?-vladimirborjas-projects\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

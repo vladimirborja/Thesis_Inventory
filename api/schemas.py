@@ -142,11 +142,13 @@ class ProductCreate(BaseModel):
     barcode: Optional[str] = None
     category_id: Optional[int] = None
     description: Optional[str] = None
+    weight: Optional[str] = None
     cost_price: float = 0
-    selling_price: float = 0
+    selling_price: float = 0  # Bundle (₱) — Excel price list
+    piece_price: float = 0    # Piece (₱) — Excel price list
     min_stock_level: int = 0
     quantity: int = 0
-    unit_of_measure: str = "pcs"
+    unit_of_measure: str = "bundles"
     lead_time_days: int = 7
 
 
@@ -156,8 +158,10 @@ class ProductUpdate(BaseModel):
     barcode: Optional[str] = None
     category_id: Optional[int] = None
     description: Optional[str] = None
+    weight: Optional[str] = None
     cost_price: Optional[float] = None
     selling_price: Optional[float] = None
+    piece_price: Optional[float] = None
     min_stock_level: Optional[int] = None
     quantity: Optional[int] = None
     unit_of_measure: Optional[str] = None
@@ -172,8 +176,10 @@ class ProductResponse(CamelModel):
     category_id: Optional[int] = None
     category_name: Optional[str] = None
     description: Optional[str] = None
+    weight: Optional[str] = None
     cost_price: float
     selling_price: float
+    piece_price: float = 0
     min_stock_level: int
     quantity: int
     unit_of_measure: str

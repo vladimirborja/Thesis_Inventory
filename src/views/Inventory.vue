@@ -34,11 +34,13 @@ const formName = ref('');
 const formSku = ref('');
 const formBarcode = ref('');
 const formCategory = ref('');
+const formWeight = ref('');
 const formCost = ref(0);
-const formPrice = ref(0);
-const formMinStock = ref(5);
+const formPrice = ref(0);      // Bundle (₱) — Excel
+const formPiecePrice = ref(0); // Piece (₱) — Excel
+const formMinStock = ref(0);
 const formQty = ref(0);
-const formUom = ref('pcs');
+const formUom = ref('bundles');
 const formDesc = ref('');
 
 // Computed filtered products
@@ -81,14 +83,16 @@ function openAddModal() {
     isEditMode.value = false;
     currentEditId.value = null;
     formName.value = '';
-    formSku.value = 'RM-' + Math.floor(1000 + Math.random() * 9000);
-    formBarcode.value = '480' + Math.floor(100000000 + Math.random() * 900000000);
+    formSku.value = 'DFP-';
+    formBarcode.value = '';
     formCategory.value = categories.value[0]?.name || '';
-    formCost.value = 10;
-    formPrice.value = 15;
-    formMinStock.value = 10;
-    formQty.value = 100;
-    formUom.value = 'pcs';
+    formWeight.value = '';
+    formCost.value = 0;
+    formPrice.value = 0;
+    formPiecePrice.value = 0;
+    formMinStock.value = 0;
+    formQty.value = 0;
+    formUom.value = 'bundles';
     formDesc.value = '';
     
     isModalOpen.value = true;
@@ -101,8 +105,10 @@ function openEditModal(product: Product) {
     formSku.value = product.sku;
     formBarcode.value = product.barcode || '';
     formCategory.value = product.categoryName || '';
+    formWeight.value = product.weight || '';
     formCost.value = product.costPrice;
     formPrice.value = product.sellingPrice;
+    formPiecePrice.value = product.piecePrice ?? 0;
     formMinStock.value = product.minStockLevel;
     formQty.value = product.quantity;
     formUom.value = product.unitOfMeasure;
@@ -119,14 +125,16 @@ async function handleSave() {
     const payload = {
         name: formName.value,
         sku: formSku.value,
-        barcode: formBarcode.value,
+        barcode: formBarcode.value || null,
         category_id: chosenCat ? chosenCat.id : null,
+        weight: formWeight.value || null,
         cost_price: formCost.value,
         selling_price: formPrice.value,
+        piece_price: formPiecePrice.value,
         min_stock_level: formMinStock.value,
         quantity: formQty.value,
         unit_of_measure: formUom.value,
-        description: formDesc.value
+        description: formDesc.value || null,
     };
 
     try {
@@ -164,7 +172,7 @@ async function handleDelete(id: number) {
                 <div>
                     <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700/80 dark:text-emerald-400">Finished goods</p>
                     <h2 class="text-2xl md:text-[1.75rem] font-bold tracking-tight text-gray-900 dark:text-white mt-1">Inventory Catalog</h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-lg">Processed meats and packaged products — qty, cost valuation, and reorder thresholds.</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-lg">Excel Price List catalog — bundle/piece pesos from Jan–Jul 2026 sheets. Stock starts at 0 until counted.</p>
                 </div>
                 <button 
                     v-if="isAdmin"
@@ -247,16 +255,17 @@ async function handleDelete(id: number) {
                     <thead class="bg-emerald-950/[0.03] dark:bg-gray-800/80 text-gray-500 dark:text-gray-300 border-b border-emerald-900/8 dark:border-gray-800 uppercase text-[10px] tracking-wider font-bold">
                         <tr>
                             <th class="px-5 py-3">Product</th>
-                            <th class="px-5 py-3">SKU / Barcode</th>
+                            <th class="px-5 py-3">SKU</th>
+                            <th class="px-5 py-3">Weight</th>
+                            <th class="px-5 py-3 text-right">Bundle (₱)</th>
+                            <th class="px-5 py-3 text-right">Piece (₱)</th>
                             <th class="px-5 py-3">On hand</th>
-                            <th class="px-5 py-3">Valuation</th>
-                            <th class="px-5 py-3">Reorder at</th>
                             <th v-if="isAdmin" class="px-5 py-3 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-emerald-900/5 dark:divide-gray-800/50">
                         <tr v-if="filteredProducts.length === 0">
-                            <td colspan="6" class="px-5 py-12 text-center text-gray-400">
+                            <td :colspan="isAdmin ? 7 : 6" class="px-5 py-12 text-center text-gray-400">
                                 No items match the active catalog filters.
                             </td>
                         </tr>
@@ -272,34 +281,39 @@ async function handleDelete(id: number) {
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-5 py-3 font-mono text-[11px] text-gray-500">
-                                <p class="font-semibold text-gray-700 dark:text-gray-300">{{ p.sku }}</p>
-                                <p class="mt-0.5 text-gray-400" v-if="p.barcode">{{ p.barcode }}</p>
+                            <td class="px-5 py-3 font-mono text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+                                {{ p.sku }}
+                            </td>
+                            <td class="px-5 py-3 text-xs text-gray-600 dark:text-gray-300 tabular-nums">
+                                {{ p.weight || '—' }}
+                            </td>
+                            <td class="px-5 py-3 text-right">
+                                <p class="font-bold text-gray-900 dark:text-white tabular-nums">
+                                    {{ p.sellingPrice > 0 ? formatCurrency(p.sellingPrice) : '—' }}
+                                </p>
+                            </td>
+                            <td class="px-5 py-3 text-right">
+                                <p class="font-bold text-gray-900 dark:text-white tabular-nums">
+                                    {{ (p.piecePrice ?? 0) > 0 ? formatCurrency(p.piecePrice ?? 0) : '—' }}
+                                </p>
                             </td>
                             <td class="px-5 py-3">
                                 <div class="flex items-baseline gap-1.5">
                                     <span class="font-extrabold text-base tabular-nums" 
-                                        :class="p.quantity === 0 ? 'text-red-500' : p.quantity <= p.minStockLevel ? 'text-amber-600' : 'text-gray-900 dark:text-white'">
+                                        :class="p.quantity === 0 ? 'text-red-500' : p.minStockLevel > 0 && p.quantity <= p.minStockLevel ? 'text-amber-600' : 'text-gray-900 dark:text-white'">
                                         {{ p.quantity }}
                                     </span>
                                     <span class="text-gray-400 text-[11px]">{{ p.unitOfMeasure }}</span>
                                 </div>
                                 <span v-if="p.quantity === 0" class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-red-600 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 rounded-md uppercase tracking-wide">
-                                    <ShieldX :size="10" /> Out
+                                    <ShieldX :size="10" /> Uncounted
                                 </span>
-                                <span v-else-if="p.quantity <= p.minStockLevel" class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/20 px-2 py-0.5 rounded-md uppercase tracking-wide">
+                                <span v-else-if="p.minStockLevel > 0 && p.quantity <= p.minStockLevel" class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/20 px-2 py-0.5 rounded-md uppercase tracking-wide">
                                     <AlertTriangle :size="10" /> Low
                                 </span>
                                 <span v-else class="inline-flex items-center gap-1 mt-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded-md uppercase tracking-wide">
-                                    <PackageCheck :size="10" /> Optimal
+                                    <PackageCheck :size="10" /> On hand
                                 </span>
-                            </td>
-                            <td class="px-5 py-3">
-                                <p class="font-bold text-gray-900 dark:text-white tabular-nums">{{ formatCurrency(p.costPrice * p.quantity) }}</p>
-                                <p class="text-[10px] text-gray-400 mt-0.5">@ {{ formatCurrency(p.costPrice) }}</p>
-                            </td>
-                            <td class="px-5 py-3 text-xs text-gray-500 tabular-nums">
-                                {{ p.minStockLevel }} {{ p.unitOfMeasure }}
                             </td>
                             <td v-if="isAdmin" class="px-5 py-3 text-right">
                                 <div class="flex items-center justify-end gap-2">
@@ -394,52 +408,67 @@ async function handleDelete(id: number) {
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-3 gap-3">
+                        <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-1">
-                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Cost Price (₱)</label>
-                                <input 
-                                    v-model.number="formCost" 
-                                    type="number"
-                                    step="0.01"
-                                    class="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
-                                    required
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Weight</label>
+                                <input
+                                    v-model="formWeight"
+                                    type="text"
+                                    placeholder="e.g. 225g"
+                                    class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
                                 />
                             </div>
                             <div class="space-y-1">
-                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Selling Price (₱)</label>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">On-hand qty</label>
+                                <input
+                                    v-model.number="formQty"
+                                    type="number"
+                                    min="0"
+                                    class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="space-y-1">
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Bundle (₱)</label>
                                 <input 
                                     v-model.number="formPrice" 
                                     type="number"
                                     step="0.01"
+                                    min="0"
                                     class="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
                                     required
                                 />
                             </div>
                             <div class="space-y-1">
-                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock Alert Level</label>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Piece (₱)</label>
+                                <input 
+                                    v-model.number="formPiecePrice" 
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    class="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
+                                    required
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Reorder at</label>
                                 <input 
                                     v-model.number="formMinStock" 
                                     type="number"
+                                    min="0"
                                     class="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
                                     required
                                 />
                             </div>
                         </div>
+                        <p class="text-[11px] text-amber-700 dark:text-amber-400">
+                            Prices must match the Excel Price List. Leave at ₱0 only when Excel has no price yet.
+                        </p>
 
                         <div class="space-y-1">
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Initial Warehouse Quantity</label>
-                            <input 
-                                v-model.number="formQty" 
-                                type="number"
-                                class="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
-                                :disabled="isEditMode"
-                                required
-                            />
-                            <p v-if="isEditMode" class="text-[10px] text-gray-400">To adjust stock, please log a transaction voucher.</p>
-                        </div>
-
-                        <div class="space-y-1">
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Product Description</label>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Notes</label>
                             <textarea 
                                 v-model="formDesc" 
                                 class="w-full px-4 py-2 border border-gray-200 dark:border-gray-800 rounded-xl bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 h-20"

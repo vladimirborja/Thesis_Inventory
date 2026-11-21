@@ -22,7 +22,7 @@ import bcrypt
 
 from api.models import (
     Base, User, Category, Warehouse, Supplier,
-    Product, Ingredient, StockTransaction
+    Product, Ingredient,
 )
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -102,103 +102,28 @@ with Session(engine) as db:
     db.add_all(suppliers)
     db.flush()
 
-    # ── Products (Duque Food Products catalog) — prices in PHP ───────────────
+    # ── Products — Excel Price List only (no invented stock/cost) ────────────
+    from api.services.product_catalog import catalog_as_dicts
+
     meats_id = cat_map["processed-meats"]
-    products = [
-        Product(
-            name="Skinless Longganisa", sku="DFP-LONG-001", barcode="4809001001001",
-            category_id=meats_id,
-            description="Skinless Filipino longganisa — savory-sweet, ready for retail and foodservice.",
-            cost_price=180.00, selling_price=250.00,
-            min_stock_level=40, quantity=120, unit_of_measure="kg",
-            lead_time_days=5,
-        ),
-        Product(
-            name="Tocino", sku="DFP-TOCI-002", barcode="4809001001002",
-            category_id=meats_id,
-            description="Sweet cured tocino slices for home and institutional buyers.",
-            cost_price=200.00, selling_price=280.00,
-            min_stock_level=35, quantity=95, unit_of_measure="kg",
-            lead_time_days=5,
-        ),
-        Product(
-            name="Ham", sku="DFP-HAM-003", barcode="4809001001003",
-            category_id=meats_id,
-            description="Processed ham — sliced or whole for local customers and businesses.",
-            cost_price=320.00, selling_price=450.00,
-            min_stock_level=20, quantity=48, unit_of_measure="kg",
-            lead_time_days=7,
-        ),
-        Product(
-            name="Embotido", sku="DFP-EMBO-004", barcode="4809001001004",
-            category_id=meats_id,
-            description="Classic Filipino embotido loaf for celebrations and everyday meals.",
-            cost_price=160.00, selling_price=230.00,
-            min_stock_level=30, quantity=70, unit_of_measure="kg",
-            lead_time_days=5,
-        ),
-        Product(
-            name="Bologna", sku="DFP-BOLO-005", barcode="4809001001005",
-            category_id=meats_id,
-            description="Smooth bologna for sandwiches, trays, and bulk foodservice orders.",
-            cost_price=140.00, selling_price=200.00,
-            min_stock_level=25, quantity=60, unit_of_measure="kg",
-            lead_time_days=7,
-        ),
-        Product(
-            name="Patties", sku="DFP-PATT-006", barcode="4809001001006",
-            category_id=meats_id,
-            description="Ready-to-cook meat patties for canteens, stalls, and households.",
-            cost_price=150.00, selling_price=220.00,
-            min_stock_level=50, quantity=18, unit_of_measure="packs",
-            lead_time_days=4,
-        ),
-        Product(
-            name="Siomai", sku="DFP-SIOM-007", barcode="4809001001007",
-            category_id=meats_id,
-            description="Pork siomai — steamed or fried; packed for retail and food carts.",
-            cost_price=120.00, selling_price=180.00,
-            min_stock_level=60, quantity=150, unit_of_measure="packs",
-            lead_time_days=3,
-        ),
-    ]
+    products = [Product(**row) for row in catalog_as_dicts(category_id=meats_id)]
     db.add_all(products)
     db.flush()
 
-    # ── Ingredients (meat processing) ────────────────────────────────────────
+    # ── Ingredients (structure only — quantities start at 0 until counted) ───
     ingredients = [
-        Ingredient(name="Ground Pork", quantity=200.0, unit="kg", min_stock_level=50.0, lead_time_days=3),
-        Ingredient(name="Ground Beef", quantity=80.0, unit="kg", min_stock_level=25.0, lead_time_days=3),
-        Ingredient(name="Curing Salt", quantity=15.0, unit="kg", min_stock_level=5.0, lead_time_days=10),
-        Ingredient(name="Brown Sugar", quantity=40.0, unit="kg", min_stock_level=15.0, lead_time_days=7),
-        Ingredient(name="Garlic", quantity=25.0, unit="kg", min_stock_level=8.0, lead_time_days=4),
-        Ingredient(name="Black Pepper", quantity=8.0, unit="kg", min_stock_level=3.0, lead_time_days=7),
-        Ingredient(name="Food Casing / Wrapper", quantity=500.0, unit="pcs", min_stock_level=100.0, lead_time_days=10),
+        Ingredient(name="Ground Pork", quantity=0.0, unit="kg", min_stock_level=0.0, lead_time_days=3),
+        Ingredient(name="Ground Beef", quantity=0.0, unit="kg", min_stock_level=0.0, lead_time_days=3),
+        Ingredient(name="Curing Salt", quantity=0.0, unit="kg", min_stock_level=0.0, lead_time_days=10),
+        Ingredient(name="Brown Sugar", quantity=0.0, unit="kg", min_stock_level=0.0, lead_time_days=7),
+        Ingredient(name="Garlic", quantity=0.0, unit="kg", min_stock_level=0.0, lead_time_days=4),
+        Ingredient(name="Black Pepper", quantity=0.0, unit="kg", min_stock_level=0.0, lead_time_days=7),
+        Ingredient(name="Food Casing / Wrapper", quantity=0.0, unit="pcs", min_stock_level=0.0, lead_time_days=10),
     ]
     db.add_all(ingredients)
-    db.flush()
-
-    # ── Demo Transactions ─────────────────────────────────────────────────────
-    admin_id = users[1].id
-    emp_id = users[2].id
-    wh_ids = [w.id for w in warehouses]
-
-    txs = [
-        StockTransaction(
-            product_id=products[0].id, warehouse_id=wh_ids[0], supplier_id=suppliers[0].id,
-            user_id=admin_id, type="stock-in", quantity=50,
-            reference_number="PO-2026-DFP-001", notes="Cold storage receipt — Skinless Longganisa"),
-        StockTransaction(
-            product_id=products[5].id, warehouse_id=wh_ids[1],
-            user_id=emp_id, type="stock-out", quantity=12,
-            reference_number="SO-2026-018", notes="Released Patties for weekend orders"),
-        StockTransaction(
-            product_id=products[1].id, warehouse_id=wh_ids[0],
-            user_id=admin_id, type="adjustment", quantity=-3,
-            reference_number="ADJ-DFP-002", notes="Tocino quality hold / sample pull"),
-    ]
-    db.add_all(txs)
     db.commit()
 
-print("✅ Seed complete. Default password for all accounts: admin123")
+print("✅ Seed complete (Excel catalog, zero stock — no demo money/qty).")
+print("   Default password: admin123")
 print("   superadmin@duquefood.com / admin@duquefood.com / employee@duquefood.com")
+print("   Next: python scripts/import_historical_daily_reports.py")

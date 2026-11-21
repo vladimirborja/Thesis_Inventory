@@ -71,11 +71,13 @@ CREATE TABLE products (
     sku             VARCHAR(100) UNIQUE NOT NULL,
     barcode         VARCHAR(100),
     description     TEXT,
+    weight          VARCHAR(50),
     cost_price      NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    selling_price   NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    selling_price   NUMERIC(12, 2) NOT NULL DEFAULT 0,  -- Bundle (₱)
+    piece_price     NUMERIC(12, 2) NOT NULL DEFAULT 0,  -- Piece (₱)
     min_stock_level INT            NOT NULL DEFAULT 0,
     quantity        INT            NOT NULL DEFAULT 0,
-    unit_of_measure VARCHAR(100)   NOT NULL DEFAULT 'pcs',
+    unit_of_measure VARCHAR(100)   NOT NULL DEFAULT 'bundles',
     lead_time_days  INT            NOT NULL DEFAULT 7,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

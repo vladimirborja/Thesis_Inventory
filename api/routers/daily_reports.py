@@ -267,6 +267,8 @@ def compliance_report(
 @router.get("", response_model=List[DailyReportResponse])
 def list_reports(
     report_date: Optional[date] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -284,6 +286,10 @@ def list_reports(
         q = q.filter(DailyTransaction.user_id == current_user.id)
     if report_date:
         q = q.filter(DailyTransaction.report_date == report_date)
+    if date_from:
+        q = q.filter(DailyTransaction.report_date >= date_from)
+    if date_to:
+        q = q.filter(DailyTransaction.report_date <= date_to)
     if status:
         q = q.filter(DailyTransaction.status == status)
     return [_enrich_report(tx) for tx in q.all()]

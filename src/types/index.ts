@@ -21,8 +21,10 @@ export interface Product {
     categoryId?: number;
     categoryName?: string;
     description?: string;
+    weight?: string | null;
     costPrice: number;
-    sellingPrice: number;
+    sellingPrice: number; // Excel Bundle (₱)
+    piecePrice?: number;  // Excel Piece (₱)
     minStockLevel: number;
     quantity: number;
     unitOfMeasure: string;

@@ -109,6 +109,9 @@ interface LineItem {
     category: string;
     product_name: string;
     weight: string | null;
+    /** Excel reference unit prices (₱ / bundle, ₱ / piece) — display / auto-calc only */
+    price_bundle: number | null;
+    price_piece: number | null;
     load_in: string | null;           // text — can be "20 + 7"
     load_out_bundle: string | null;   // text — same format
     load_out_piece: number | null;
@@ -153,6 +156,8 @@ function normalizeLineItem(raw: Record<string, unknown>, fallbackOrder = 0): Lin
         category: String(raw.category ?? ''),
         product_name: String(raw.product_name ?? raw.productName ?? ''),
         weight: (raw.weight as string | null | undefined) ?? null,
+        price_bundle: pickNum(raw, 'price_bundle', 'priceBundle'),
+        price_piece: pickNum(raw, 'price_piece', 'pricePiece'),
         load_in: raw.load_in != null || raw.loadIn != null
             ? String(raw.load_in ?? raw.loadIn)
             : null,
@@ -227,8 +232,12 @@ const denomTotal = computed(() =>
     ) * 100) / 100,
 );
 
-// Cash collection locked to denomination count; balance auto-computed
-watch(denomTotal, (v) => { formCash.value = v; }, { immediate: true });
+// Live cash is ALWAYS the counted denomination total (real-money Poka-Yoke).
+// Historical imports may show cash without bills until recount.
+watch(denomTotal, (v) => {
+    if (v > 0) formCash.value = v;
+    else if (!formRptNotes.value.includes('historical-import')) formCash.value = 0;
+});
 
 // Keep each row's locked total_sales in sync for payload / history
 watch(rowTotals, (totals) => {
@@ -268,7 +277,8 @@ async function loadReports() {
     isLoadingRpt.value = true;
     try {
         const params = new URLSearchParams();
-        if (dateFilter.value?.from) params.set('report_date', dateFilter.value.from);
+        if (dateFilter.value?.from) params.set('date_from', dateFilter.value.from);
+        if (dateFilter.value?.to) params.set('date_to', dateFilter.value.to);
         const qs = params.toString() ? `?${params}` : '';
         const raw = await api.get<DailyReport[]>(`/daily-reports${qs}`);
         reports.value = raw.map((report) => ({
@@ -283,27 +293,85 @@ async function loadReports() {
 }
 watch(dateFilter, () => loadReports());
 
-// Completeness only required when submitting (thesis: prevent incomplete final reports)
+// Completeness only for rows with activity (real-money submit gate)
 const validationErrors = computed(() => {
     if (formStatus.value !== 'submitted') return [];
     const errs: string[] = [];
     formItems.value.forEach((item, i) => {
         const lbl = item.weight ? `${item.product_name} (${item.weight})` : item.product_name;
+        const active = Boolean(
+            (item.load_in && item.load_in !== '0') ||
+            (item.load_out_bundle && item.load_out_bundle !== '0') ||
+            (item.load_out_piece ?? 0) > 0 ||
+            (item.sales_bundle ?? 0) > 0 ||
+            (item.sales_piece ?? 0) > 0 ||
+            (item.sales_peso_bundle ?? 0) > 0 ||
+            (item.sales_peso_piece ?? 0) > 0,
+        );
+        if (!active) return;
         if (!item.load_in && item.load_in !== '0') errs.push(`Row ${i + 1} "${lbl}": Load-in`);
         if (!item.load_out_bundle && item.load_out_bundle !== '0') errs.push(`Row ${i + 1} "${lbl}": Load-out/Bdl`);
-        if (item.load_out_piece === null) errs.push(`Row ${i + 1} "${lbl}": Load-out/Pc`);
-        if (item.sales_bundle === null) errs.push(`Row ${i + 1} "${lbl}": Sales/Bdl`);
-        if (item.sales_piece === null) errs.push(`Row ${i + 1} "${lbl}": Sales/Pc`);
-        if (item.sales_peso_bundle === null) errs.push(`Row ${i + 1} "${lbl}": ₱/Bdl`);
-        if (item.sales_peso_piece === null) errs.push(`Row ${i + 1} "${lbl}": ₱/Pc`);
+        if (item.sales_bundle == null && item.sales_piece == null) {
+            errs.push(`Row ${i + 1} "${lbl}": Sales qty`);
+        }
+        if (item.price_bundle && item.price_bundle > 0 && item.sales_bundle != null) {
+            const expected = Math.round(item.sales_bundle * item.price_bundle * 100) / 100;
+            if (Math.abs((item.sales_peso_bundle ?? 0) - expected) > 0.01) {
+                errs.push(`Row ${i + 1} "${lbl}": ₱/bdl must be ${expected}`);
+            }
+        }
+        if (item.price_piece && item.price_piece > 0 && item.sales_piece != null) {
+            const expected = Math.round(item.sales_piece * item.price_piece * 100) / 100;
+            if (Math.abs((item.sales_peso_piece ?? 0) - expected) > 0.01) {
+                errs.push(`Row ${i + 1} "${lbl}": ₱/pc must be ${expected}`);
+            }
+        }
     });
+    if (formCash.value > 0 && denomTotal.value === 0 && !formRptNotes.value.includes('historical-import')) {
+        errs.push('Count bills/coins — cash must match denomination total');
+    }
     return errs;
 });
 const isFormValid = computed(() => validationErrors.value.length === 0 && formDate.value.length > 0);
 
+function priceLookupKey(name: string, weight: string | null) {
+    return `${name.trim().toLowerCase()}|${(weight || '').trim().toLowerCase()}`;
+}
+
+function withTemplatePrices(items: LineItem[]): LineItem[] {
+    const prices = new Map(
+        templateRows.value.map((r) => [
+            priceLookupKey(r.product_name, r.weight),
+            { price_bundle: r.price_bundle, price_piece: r.price_piece },
+        ]),
+    );
+    return items.map((item) => {
+        const hit = prices.get(priceLookupKey(item.product_name, item.weight));
+        if (!hit) return item;
+        return {
+            ...item,
+            price_bundle: item.price_bundle ?? hit.price_bundle,
+            price_piece: item.price_piece ?? hit.price_piece,
+        };
+    });
+}
+
+/** Lock peso sales to qty × Excel unit price whenever a catalog price exists. */
+function autoPesoFromQty(idx: number) {
+    const item = formItems.value[idx];
+    if (!item) return;
+    if (item.sales_bundle != null && item.price_bundle != null && item.price_bundle > 0) {
+        item.sales_peso_bundle = Math.round(item.sales_bundle * item.price_bundle * 100) / 100;
+    }
+    if (item.sales_piece != null && item.price_piece != null && item.price_piece > 0) {
+        item.sales_peso_piece = Math.round(item.sales_piece * item.price_piece * 100) / 100;
+    }
+}
+
 function resetBlankForm() {
     formClient.value = '';
     formPrepared.value = authStore.currentUser?.name ?? '';
+    formCash.value = 0;
     formChecks.value = 0;
     formCredit.value = 0;
     formExpenses.value = 0;
@@ -319,6 +387,7 @@ async function loadReportForDate(dateStr: string) {
         const existing = await api.get<DailyReport>(`/daily-reports/by-date/${dateStr}`);
         formClient.value = existing.clientName || '';
         formPrepared.value = existing.userName || authStore.currentUser?.name || '';
+        formCash.value = existing.cashCollection ?? 0;
         formChecks.value = existing.checksCollection ?? 0;
         formCredit.value = existing.creditSales ?? 0;
         formExpenses.value = existing.expenses ?? 0;
@@ -338,8 +407,10 @@ async function loadReportForDate(dateStr: string) {
             formDenom.value = { bill_1000: 0, bill_500: 0, bill_200: 0, bill_100: 0, bill_50: 0, bill_20: 0, coins: 0 };
         }
         if (existing.items && existing.items.length > 0) {
-            formItems.value = existing.items.map((r, i) =>
-                normalizeLineItem(r as unknown as Record<string, unknown>, i),
+            formItems.value = withTemplatePrices(
+                existing.items.map((r, i) =>
+                    normalizeLineItem(r as unknown as Record<string, unknown>, i),
+                ),
             );
         } else {
             formItems.value = blankFromTemplate(templateRows.value);
@@ -926,25 +997,27 @@ onMounted(async () => {
 
                 <!-- ── Product Line Items Table ─────────────────────────── -->
                 <div class="overflow-x-auto max-h-[min(52vh,560px)] overflow-y-auto">
-                    <table class="w-full text-xs border-collapse min-w-[980px]">
+                    <table class="w-full text-xs border-collapse min-w-[1180px]">
                         <thead class="sticky top-0 z-20">
                             <tr class="bg-[#065f46] text-white text-[9px] uppercase tracking-wide font-bold">
                                 <th class="sticky left-0 z-30 bg-[#065f46] px-3 py-2 text-left min-w-[140px] border border-[#059669]">Description</th>
-                                <th class="px-2 py-2 text-center min-w-[52px] border border-[#059669]">Wt</th>
-                                <th class="px-2 py-2 text-center min-w-[70px] border border-[#059669]">Load-in</th>
-                                <th class="px-2 py-2 text-center min-w-[70px] border border-[#059669] leading-tight">Out<br>/Bdl</th>
-                                <th class="px-2 py-2 text-center min-w-[70px] border border-[#059669] leading-tight">Out<br>/Pc</th>
-                                <th class="px-2 py-2 text-center min-w-[70px] border border-[#059669] leading-tight">Sales<br>/Bdl</th>
-                                <th class="px-2 py-2 text-center min-w-[70px] border border-[#059669] leading-tight">Sales<br>/Pc</th>
-                                <th class="px-2 py-2 text-center min-w-[84px] border border-[#059669] leading-tight">₱ Sales<br>/Bdl</th>
-                                <th class="px-2 py-2 text-center min-w-[84px] border border-[#059669] leading-tight">₱ Sales<br>/Pc</th>
+                                <th class="px-2 py-2 text-center min-w-[52px] border border-[#059669]">Weight</th>
+                                <th class="px-2 py-2 text-center min-w-[70px] border border-[#059669]">Load-In</th>
+                                <th class="px-2 py-2 text-center min-w-[78px] border border-[#059669] leading-tight">Load-out<br>per bundle</th>
+                                <th class="px-2 py-2 text-center min-w-[78px] border border-[#059669] leading-tight">Load-out<br>per piece</th>
+                                <th class="px-2 py-2 text-center min-w-[70px] border border-[#059669] leading-tight">Sales<br>per bundle</th>
+                                <th class="px-2 py-2 text-center min-w-[70px] border border-[#059669] leading-tight">Sales<br>per piece</th>
+                                <th class="px-2 py-2 text-center min-w-[84px] border border-[#059669] leading-tight">Sales (peso)<br>per bundle</th>
+                                <th class="px-2 py-2 text-center min-w-[84px] border border-[#059669] leading-tight">Sales (peso)<br>per piece</th>
+                                <th class="px-2 py-2 text-center min-w-[72px] border border-[#059669] leading-tight">₱ /<br>bundle</th>
+                                <th class="px-2 py-2 text-center min-w-[72px] border border-[#059669] leading-tight">₱ /<br>piece</th>
                                 <th class="sticky right-0 z-30 bg-[#047857] px-3 py-2 text-right min-w-[100px] border border-[#059669] leading-tight">Total<br>Sales</th>
                             </tr>
                         </thead>
                         <tbody>
                             <template v-for="(group, cat) in groupedItems" :key="cat">
                                 <tr class="bg-[#d1fae5] dark:bg-[#064e3b]">
-                                    <td colspan="10" class="sticky left-0 px-3 py-1.5 font-bold text-[11px] text-[#065f46] dark:text-emerald-300 uppercase border border-gray-300 dark:border-gray-700">
+                                    <td colspan="12" class="sticky left-0 px-3 py-1.5 font-bold text-[11px] text-[#065f46] dark:text-emerald-300 uppercase border border-gray-300 dark:border-gray-700">
                                         {{ cat }}
                                     </td>
                                 </tr>
@@ -962,7 +1035,7 @@ onMounted(async () => {
                                         <span v-else class="text-gray-300">—</span>
                                     </td>
                                     <td class="p-0.5 border border-gray-200 dark:border-gray-700">
-                                        <input v-model="formItems[item._idx].load_in" type="text" placeholder="20+7"
+                                        <input v-model="formItems[item._idx].load_in" type="text" placeholder="0"
                                             class="w-full px-1.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-yellow-50 dark:focus:bg-yellow-900/10 focus:ring-1 focus:ring-yellow-400 rounded text-[11px]" />
                                     </td>
                                     <td class="p-0.5 border border-gray-200 dark:border-gray-700">
@@ -975,19 +1048,49 @@ onMounted(async () => {
                                     </td>
                                     <td class="p-0.5 border border-gray-200 dark:border-gray-700">
                                         <input v-model.number="formItems[item._idx].sales_bundle" type="number" min="0" placeholder="0"
-                                            class="w-full px-1.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-yellow-50 dark:focus:bg-yellow-900/10 focus:ring-1 focus:ring-yellow-400 rounded text-[11px]" />
+                                            class="w-full px-1.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-yellow-50 dark:focus:bg-yellow-900/10 focus:ring-1 focus:ring-yellow-400 rounded text-[11px]"
+                                            @change="autoPesoFromQty(item._idx)" />
                                     </td>
                                     <td class="p-0.5 border border-gray-200 dark:border-gray-700">
                                         <input v-model.number="formItems[item._idx].sales_piece" type="number" min="0" placeholder="0"
-                                            class="w-full px-1.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-yellow-50 dark:focus:bg-yellow-900/10 focus:ring-1 focus:ring-yellow-400 rounded text-[11px]" />
+                                            class="w-full px-1.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-yellow-50 dark:focus:bg-yellow-900/10 focus:ring-1 focus:ring-yellow-400 rounded text-[11px]"
+                                            @change="autoPesoFromQty(item._idx)" />
                                     </td>
                                     <td class="p-0.5 border border-gray-200 dark:border-gray-700">
-                                        <input v-model.number="formItems[item._idx].sales_peso_bundle" type="number" min="0" step="0.01" placeholder="0.00"
-                                            class="w-full px-1.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-yellow-50 dark:focus:bg-yellow-900/10 focus:ring-1 focus:ring-yellow-400 rounded text-[11px]" />
+                                        <input
+                                            v-model.number="formItems[item._idx].sales_peso_bundle"
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                            :readonly="!!(item.price_bundle && item.price_bundle > 0)"
+                                            :title="item.price_bundle && item.price_bundle > 0 ? 'Locked: sales × Excel bundle price' : 'Enter peso sales'"
+                                            class="w-full px-1.5 py-1.5 text-center rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                                            :class="item.price_bundle && item.price_bundle > 0
+                                                ? 'bg-emerald-50/80 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 font-semibold tabular-nums cursor-default'
+                                                : 'bg-transparent focus:bg-yellow-50 dark:focus:bg-yellow-900/10'"
+                                        />
                                     </td>
                                     <td class="p-0.5 border border-gray-200 dark:border-gray-700">
-                                        <input v-model.number="formItems[item._idx].sales_peso_piece" type="number" min="0" step="0.01" placeholder="0.00"
-                                            class="w-full px-1.5 py-1.5 text-center bg-transparent focus:outline-none focus:bg-yellow-50 dark:focus:bg-yellow-900/10 focus:ring-1 focus:ring-yellow-400 rounded text-[11px]" />
+                                        <input
+                                            v-model.number="formItems[item._idx].sales_peso_piece"
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                            :readonly="!!(item.price_piece && item.price_piece > 0)"
+                                            :title="item.price_piece && item.price_piece > 0 ? 'Locked: sales × Excel piece price' : 'Enter peso sales'"
+                                            class="w-full px-1.5 py-1.5 text-center rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                                            :class="item.price_piece && item.price_piece > 0
+                                                ? 'bg-emerald-50/80 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 font-semibold tabular-nums cursor-default'
+                                                : 'bg-transparent focus:bg-yellow-50 dark:focus:bg-yellow-900/10'"
+                                        />
+                                    </td>
+                                    <td class="px-2 py-1 text-center tabular-nums text-gray-500 border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40">
+                                        {{ item.price_bundle != null ? fmtNum(item.price_bundle) : '—' }}
+                                    </td>
+                                    <td class="px-2 py-1 text-center tabular-nums text-gray-500 border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40">
+                                        {{ item.price_piece != null ? fmtNum(item.price_piece) : '—' }}
                                     </td>
                                     <!-- Locked total — always visible (incl. 0.00) -->
                                     <td class="sticky right-0 z-10 px-3 py-1.5 text-right border border-gray-200 dark:border-gray-700 bg-[#ecfdf5] dark:bg-emerald-950/40">
@@ -1000,7 +1103,7 @@ onMounted(async () => {
                         </tbody>
                         <tfoot class="sticky bottom-0 z-20">
                             <tr class="bg-[#065f46] text-white">
-                                <td colspan="9" class="px-3 py-3 font-bold text-xs uppercase tracking-widest text-right border border-[#059669]">Total Sales</td>
+                                <td colspan="11" class="px-3 py-3 font-bold text-xs uppercase tracking-widest text-right border border-[#059669]">Total Sales</td>
                                 <td class="sticky right-0 bg-[#047857] px-3 py-3 text-right font-black text-sm border border-[#059669] tabular-nums">
                                     ₱{{ fmtNum(grandTotal) }}
                                 </td>

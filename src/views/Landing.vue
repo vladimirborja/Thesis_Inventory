@@ -81,7 +81,7 @@ function handleProfileClick() {
       <div class="mx-auto flex max-w-6xl items-center justify-between gap-4">
         <div class="flex items-center gap-3">
           <img
-            src="/images/brand/logo.jpg"
+            src="/images/brand/logo.png"
             alt="Duque Food Products logo"
             class="h-10 w-10 rounded-full object-cover shadow-md"
           />
@@ -283,7 +283,7 @@ function handleProfileClick() {
     <footer class="relative px-6 pb-10 pt-4 text-center text-sm text-gray-500">
       <div class="liquid-glass liquid-glass--light mx-auto max-w-6xl space-y-4 rounded-3xl px-6 py-8">
         <div class="flex items-center justify-center gap-2 font-semibold text-gray-800">
-          <img src="/images/brand/logo.jpg" alt="" class="h-6 w-6 rounded-full object-cover" />
+          <img src="/images/brand/logo.png" alt="" class="h-6 w-6 rounded-full object-cover" />
           Duque Food Products - DIMS Company Portal
         </div>
         <p>© {{ new Date().getFullYear() }} Built by Justine Ryan Juco. All rights reserved.</p>

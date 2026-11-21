@@ -66,7 +66,7 @@ const products = [
       <div class="mx-auto flex max-w-6xl items-center justify-between gap-4">
         <div class="flex min-w-0 items-center gap-3">
           <img
-            src="/images/brand/logo.jpg"
+            src="/images/brand/logo.png"
             alt="Duque Food Products logo"
             class="h-11 w-11 shrink-0 rounded-full object-cover shadow-sm"
           />
@@ -113,7 +113,7 @@ const products = [
           class="relative z-10 flex flex-col items-center gap-10 px-6 py-14 md:flex-row md:px-10 md:py-16"
         >
           <img
-            src="/images/brand/logo.jpg"
+            src="/images/brand/logo.png"
             alt="FDP — Duque Food Products"
             class="h-40 w-40 shrink-0 rounded-full border-4 border-white/80 object-cover shadow-2xl md:h-48 md:w-48"
           />

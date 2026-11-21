@@ -110,7 +110,7 @@ function handleLogout() {
         <aside class="ims-sidebar-glass hidden lg:flex flex-col w-[15.5rem] shrink-0 text-white relative z-10 overflow-hidden">
             <div class="relative h-[4.25rem] flex items-center gap-3 border-b border-white/15 px-5">
                 <img
-                    src="/images/brand/logo.jpg"
+                    src="/images/brand/logo.png"
                     alt="Duque"
                     class="h-10 w-10 rounded-full object-cover ring-2 ring-white/35 shadow-lg"
                 />
@@ -240,7 +240,7 @@ function handleLogout() {
                 </button>
 
                 <div class="h-16 flex items-center gap-3 border-b border-white/10 px-5">
-                    <img src="/images/brand/logo.jpg" alt="Duque" class="h-9 w-9 rounded-full object-cover ring-2 ring-emerald-400/40" />
+                    <img src="/images/brand/logo.png" alt="Duque" class="h-9 w-9 rounded-full object-cover ring-2 ring-emerald-400/40" />
                     <span class="font-bold text-sm truncate">{{ userCompany }}</span>
                 </div>
 

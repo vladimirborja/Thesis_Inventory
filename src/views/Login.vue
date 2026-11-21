@@ -154,7 +154,7 @@ async function handleRegister() {
       <div class="md:hidden">
         <div class="brand-panel flex flex-col items-center gap-5 p-8 text-center text-white">
           <img
-            src="/images/brand/logo.jpg"
+            src="/images/brand/logo.png"
             alt="Duque Food Products"
             class="h-16 w-16 rounded-full border-2 border-white/80 object-cover shadow-lg"
           />
@@ -442,7 +442,7 @@ async function handleRegister() {
         <div class="green-panel" :class="isRegister ? 'green-panel--right' : 'green-panel--left'">
           <div class="flex h-full flex-col items-center justify-center gap-7 px-10 text-center text-white">
             <img
-              src="/images/brand/logo.jpg"
+              src="/images/brand/logo.png"
               alt="Duque Food Products"
               class="h-20 w-20 rounded-full border-2 border-white/80 object-cover shadow-lg"
             />
